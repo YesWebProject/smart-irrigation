@@ -33,7 +33,7 @@ import watchdog
 from config import OTA_ENABLED, OTA_MANIFEST_URL, CODE_VERSION
 
 # Files that are NEVER replaced by OTA — user data or credentials
-_PROTECTED = frozenset({"config.py", "secrets.py", "webrepl_cfg.py"})
+_PROTECTED = frozenset({"config.py", "secrets.py", "webrepl_cfg.py", "state.bin"})
 
 
 def cleanup_temp_files():
