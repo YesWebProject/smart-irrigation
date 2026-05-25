@@ -275,8 +275,15 @@ if power.commands_accepted(tier):
     watchdog.feed()
     water_now = "water_now" in commands
     snooze    = "snooze"    in commands
+    cancel    = "cancel"    in commands
 else:
     print(f"Tier {tier}: commands ignored.")
+    cancel = False
+
+if cancel:
+    water_now = False
+    cloud.send_ntfy_alert("Cancel received — water_now cleared.")
+    print("Cancel: water_now command cleared.")
 
 if snooze:
     power.set_watered_today(True)
