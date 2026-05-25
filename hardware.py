@@ -41,7 +41,8 @@ class WaterLevel:
     """
 
     def __init__(self):
-        self._uart = UART(0, baudrate=UART_BAUD, rx=Pin(UART_RX_PIN))
+        self._uart    = UART(0, baudrate=UART_BAUD, rx=Pin(UART_RX_PIN))
+        self._last_mm = None   # cached raw reading — available after read_percent()
 
     def _read_distance_mm(self):
         """
@@ -75,14 +76,17 @@ class WaterLevel:
 
     def read_percent(self):
         """
-        Read water level as a percentage (0–100%).
+        Read water level as a percentage (0-100%).
+        Also caches the raw mm reading in self._last_mm for calibration logging.
         Returns None if the sensor gives no valid reading.
 
         Calibration:
             SENSOR_DISTANCE_FULL_MM  = distance when butt is full  (small number, e.g. 100mm)
             SENSOR_DISTANCE_EMPTY_MM = distance when butt is empty (large number, e.g. 800mm)
         """
-        distance = self._read_distance_mm()
+        distance      = self._read_distance_mm()
+        self._last_mm = distance   # cache raw reading -- None if sensor failed
+
         if distance is None:
             print("Water level: no valid reading.")
             return None
@@ -90,7 +94,7 @@ class WaterLevel:
         pct = ((SENSOR_DISTANCE_EMPTY_MM - distance) /
                (SENSOR_DISTANCE_EMPTY_MM - SENSOR_DISTANCE_FULL_MM) * 100.0)
         pct = max(0.0, min(100.0, pct))
-        print(f"Water level: {distance}mm → {pct:.1f}%")
+        print(f"Water level: {distance}mm -> {pct:.1f}%")
         return round(pct, 1)
 
 
@@ -193,7 +197,9 @@ _probe = None
 
 def read_water_level_pct():
     """
-    Read water level as a percentage (0–100).
+    Read water level as a percentage (0-100).
+    Also populates the internal mm cache so read_water_level_mm() can be
+    called afterwards without triggering a second sensor read.
     Returns a float or None on failure.
     """
     global _water
@@ -204,6 +210,20 @@ def read_water_level_pct():
     except Exception as e:
         print(f"Water level init/read failed: {e}")
         return None
+
+
+def read_water_level_mm():
+    """
+    Return the raw sensor distance in mm from the last read_water_level_pct() call.
+    Call AFTER read_water_level_pct() -- no second sensor read is needed.
+    Returns an int (mm) or None if the sensor gave no valid reading.
+    Useful for remote calibration: log this value to InfluxDB and view in Grafana
+    to find the correct SENSOR_DISTANCE_EMPTY_MM and SENSOR_DISTANCE_FULL_MM values.
+    """
+    global _water
+    if _water is None:
+        return None
+    return _water._last_mm
 
 
 def run_pump(duration_s, safety_check=None):

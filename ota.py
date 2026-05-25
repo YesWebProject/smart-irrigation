@@ -33,7 +33,7 @@ import watchdog
 from config import OTA_ENABLED, OTA_MANIFEST_URL, CODE_VERSION
 
 # Files that are NEVER replaced by OTA — user data or credentials
-_PROTECTED = frozenset({"config.py", "secrets.py", "webrepl_cfg.py", "state.bin"})
+_PROTECTED = frozenset({"config.py", "secrets.py", "webrepl_cfg.py", "state.bin", "_ota_version"})
 
 
 def cleanup_temp_files():
@@ -82,12 +82,29 @@ def check_and_apply(send_alert=None):
         return False
 
     # ── Version check ────────────────────────────────────────────────────────
+    # Read local version from _ota_version file if it exists.
+    # This is written after each successful update so the Pico knows which
+    # version it is running even though config.py (which holds CODE_VERSION)
+    # is protected and never overwritten by OTA.
+    # On first run (no _ota_version file), fall back to CODE_VERSION and
+    # create the file so future checks work correctly.
+    try:
+        with open("_ota_version", "r") as _f:
+            local_version = int(_f.read().strip())
+    except Exception:
+        local_version = CODE_VERSION
+        try:
+            with open("_ota_version", "w") as _f:
+                _f.write(str(CODE_VERSION))
+        except Exception:
+            pass
+
     remote_version = manifest.get("version", 0)
-    if remote_version <= CODE_VERSION:
-        print(f"OTA: up to date (local v{CODE_VERSION}, remote v{remote_version})")
+    if remote_version <= local_version:
+        print(f"OTA: up to date (local v{local_version}, remote v{remote_version})")
         return False
 
-    print(f"OTA: update available — v{CODE_VERSION} → v{remote_version}")
+    print(f"OTA: update available — v{local_version} → v{remote_version}")
     if send_alert:
         send_alert(
             f"OTA update starting: v{CODE_VERSION} → v{remote_version}. "
@@ -152,6 +169,13 @@ def check_and_apply(send_alert=None):
             send_alert(msg + " — rebooting anyway.")
     else:
         print("OTA: all files applied successfully.")
+
+    # Save the applied version so the next check knows we are up to date
+    try:
+        with open("_ota_version", "w") as _f:
+            _f.write(str(remote_version))
+    except Exception as e:
+        print(f"OTA: could not write _ota_version: {e}")
 
     if send_alert:
         send_alert(

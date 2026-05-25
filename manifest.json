@@ -1,9 +1,7 @@
 {
-  "version": 1,
-  "notes": "Initial release",
-
-  "base_url": "https://raw.githubusercontent.com/YesWebProject/smart-irrigation/main/",
-
+  "version": 2,
+  "notes": "Log raw water level mm for remote calibration; fix OTA version tracking",
+  "base_url": "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/",
   "files": [
     "main.py",
     "hardware.py",

@@ -125,6 +125,7 @@ watchdog.feed()
 # ── Stage 7: Read sensors ───────────────────────────────────────────────────
 
 water_pct = hardware.read_water_level_pct()
+water_mm  = hardware.read_water_level_mm()   # raw mm — for calibration, logged to InfluxDB
 watchdog.feed()
 probe_ok  = hardware.read_probe_sensor()
 watchdog.feed()
@@ -295,6 +296,8 @@ if weather is not None:
 
 if water_pct is not None:
     log_data["water_level_pct"] = water_pct
+if water_mm is not None:
+    log_data["water_level_mm"] = water_mm
 
 cloud.log_to_influx(log_data)
 watchdog.feed()
