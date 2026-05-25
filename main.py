@@ -43,9 +43,13 @@ print("=" * 42)
 _pending_alerts = []
 voltage, tier = power.run(send_alert=lambda msg: _pending_alerts.append(msg))
 
-# Detect whether this is a cold power-on (battery just connected) vs a normal
-# deep sleep wake. Used to trigger startup mode below.
-_COLD_BOOT = machine.reset_cause() == machine.PWRON_RESET
+# Detect whether this is a cold power-on (battery just connected / power loss)
+# vs a normal deep sleep wake or software reset.
+# machine.reset_cause() is unreliable on RP2350 — it returns PWRON_RESET even
+# after deep sleep. Instead: the Pico's RTC resets to year 2000 on any power
+# loss, so year < 2024 reliably means the battery was just connected.
+# After NTP sync the year is correct; deep sleep preserves the RTC.
+_COLD_BOOT = time.localtime()[0] < 2024
 
 
 # ── Startup mode ────────────────────────────────────────────────────────────
