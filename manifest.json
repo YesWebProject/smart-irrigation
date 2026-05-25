@@ -1,6 +1,6 @@
 {
   "version": 8,
-  "notes": "Hard 3.0V emergency cutoff \u2014 safe to OTA before updating config.py",
+  "notes": "Emergency battery cutoff \u2014 configurable via Gist",
   "base_url": "https://raw.githubusercontent.com/YesWebProject/smart-irrigation/main/",
   "files": [
     "main.py",

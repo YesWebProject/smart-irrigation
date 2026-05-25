@@ -305,8 +305,9 @@ def apply_remote_config(remote_cfg):
     _set("BATTERY_TIER1_V",    bat.get("tier1_v"))
     _set("BATTERY_TIER2_V",    bat.get("tier2_v"))
     _set("BATTERY_TIER3_V",    bat.get("tier3_v"))
-    _set("BATTERY_ALERT_V",    bat.get("alert_critical_v"))
-    _set("BATTERY_RECOVERY_V", bat.get("alert_recovery_v"))
+    _set("BATTERY_ALERT_V",              bat.get("alert_critical_v"))
+    _set("BATTERY_RECOVERY_V",           bat.get("alert_recovery_v"))
+    _set("BATTERY_EMERGENCY_CUTOFF_V",   bat.get("emergency_cutoff_v"))
 
     # Alert thresholds
     al = remote_cfg.get("alerts", {})

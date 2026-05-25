@@ -29,13 +29,8 @@ from config import (
     SLEEP_TIER1_S, SLEEP_TIER2_S, SLEEP_TIER3_S, SLEEP_TIER4_S,
 )
 
-# Defensive import — BATTERY_EMERGENCY_CUTOFF_V was added in config.py v8.
-# If config.py on the Pico is older (hasn't been manually updated yet),
-# fall back to the default so the OTA doesn't crash on boot.
-try:
-    from config import BATTERY_EMERGENCY_CUTOFF_V
-except ImportError:
-    BATTERY_EMERGENCY_CUTOFF_V = 3.0
+# BATTERY_EMERGENCY_CUTOFF_V is read at call time inside go_to_sleep()
+# so it picks up any value set by the Gist remote config during this wake cycle.
 
 # ---------------------------------------------------------------------------
 # Persistent state — filesystem helpers
@@ -231,9 +226,14 @@ def go_to_sleep(tier, voltage=None):
     """
     save_tier(tier)
 
-    if voltage is not None and voltage < BATTERY_EMERGENCY_CUTOFF_V:
+    # Read emergency cutoff from config at call time so it reflects any
+    # value applied by the Gist remote config during this wake cycle.
+    import config as _cfg
+    emergency_v = getattr(_cfg, "BATTERY_EMERGENCY_CUTOFF_V", 3.0)
+
+    if voltage is not None and voltage < emergency_v:
         days = 7
-        print(f"EMERGENCY: {voltage}V below {BATTERY_EMERGENCY_CUTOFF_V}V cutoff "
+        print(f"EMERGENCY: {voltage}V below {emergency_v}V cutoff "
               f"— sleeping {days} days to protect battery.")
         machine.deepsleep(days * 24 * 60 * 60 * 1000)
 
