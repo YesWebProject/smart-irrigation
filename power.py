@@ -5,17 +5,19 @@
 #   - Read battery voltage via ADC
 #   - Classify voltage into a power tier (1-4)
 #   - Fire critical low and recovery alerts
-#   - Own and manage RTC memory (state that survives deep sleep)
+#   - Own and manage state that survives deep sleep (written to flash filesystem)
 #   - Put the Pico into deep sleep at the end of each wake cycle
 #
-# RTC memory layout — 11 bytes, persists across deep sleep:
+# State file layout — 11 bytes, written to state.bin on the Pico filesystem.
+# The Pico 2W (RP2350) does not support RTC.memory() — flash filesystem is
+# used instead. state.bin persists across deep sleep and power cycles.
 #   Byte 0:    battery tier from last wake (1-4, 0 = first boot)
 #   Byte 1:    watered today flag (0 = no, 1 = yes) — written by decisions.py
-#   Bytes 2-5: RESERVED (was pressure, BME280 removed — keep size for future)
+#   Bytes 2-5: RESERVED (kept for layout compatibility)
 #   Bytes 6-9: today's sunrise as unix timestamp uint32 — written by cloud.py
 #   Byte 10:   post-water fast monitoring cycles remaining (0 = normal sleep)
 #
-# All other files that need RTC memory import the helper functions from here.
+# All other files that need persistent state import the helper functions from here.
 
 import machine
 from machine import ADC, Pin
@@ -28,29 +30,40 @@ from config import (
 )
 
 # ---------------------------------------------------------------------------
-# RTC memory — internal helpers
+# Persistent state — filesystem helpers
 # ---------------------------------------------------------------------------
-_RTC_SIZE         = 11   # total bytes reserved in RTC memory
+# The Pico 2W (RP2350) does not support RTC.memory().
+# State is stored in a small binary file on the flash filesystem instead.
+# Flash survives deep sleep and power cycles — behaviour is identical to RTC memory.
+# ---------------------------------------------------------------------------
+_STATE_FILE       = "state.bin"
+_STATE_SIZE       = 11   # total bytes in state file
 _IDX_TIER         = 0    # byte 0:  last battery tier
 _IDX_WATERED      = 1    # byte 1:  watered today flag
-_IDX_PRESSURE     = 2    # bytes 2-5: last pressure (float)
+_IDX_PRESSURE     = 2    # bytes 2-5: reserved
 _IDX_SUNRISE      = 6    # bytes 6-9: sunrise unix timestamp (uint32)
 _IDX_POST_WATER   = 10   # byte 10: post-water fast cycles remaining
 
 
 def _read_rtc():
-    """Read RTC memory into a bytearray. Initialises to zeros if empty or wrong size."""
-    rtc = machine.RTC()
-    mem = rtc.memory()
-    if len(mem) < _RTC_SIZE:
-        mem = bytearray(_RTC_SIZE)
-        rtc.memory(mem)
-    return bytearray(mem)
+    """Read state file into a bytearray. Initialises to zeros if missing or wrong size."""
+    try:
+        with open(_STATE_FILE, "rb") as f:
+            data = f.read()
+        if len(data) == _STATE_SIZE:
+            return bytearray(data)
+    except OSError:
+        pass
+    # First boot or corrupted file — start fresh
+    mem = bytearray(_STATE_SIZE)
+    _write_rtc(mem)
+    return mem
 
 
 def _write_rtc(mem):
-    """Write a bytearray back to RTC memory."""
-    machine.RTC().memory(bytes(mem))
+    """Write bytearray to state file on flash."""
+    with open(_STATE_FILE, "wb") as f:
+        f.write(bytes(mem))
 
 
 # ---------------------------------------------------------------------------
