@@ -29,6 +29,14 @@ from config import (
     SLEEP_TIER1_S, SLEEP_TIER2_S, SLEEP_TIER3_S, SLEEP_TIER4_S,
 )
 
+# Defensive import — BATTERY_EMERGENCY_CUTOFF_V was added in config.py v8.
+# If config.py on the Pico is older (hasn't been manually updated yet),
+# fall back to the default so the OTA doesn't crash on boot.
+try:
+    from config import BATTERY_EMERGENCY_CUTOFF_V
+except ImportError:
+    BATTERY_EMERGENCY_CUTOFF_V = 3.0
+
 # ---------------------------------------------------------------------------
 # Persistent state — filesystem helpers
 # ---------------------------------------------------------------------------
@@ -208,15 +216,27 @@ def check_battery_alerts(voltage, tier, previous_tier, send_alert):
 # ---------------------------------------------------------------------------
 # Deep sleep
 # ---------------------------------------------------------------------------
-def go_to_sleep(tier):
+def go_to_sleep(tier, voltage=None):
     """
-    Save the current tier to RTC memory and enter deep sleep.
-    Sleep duration is set by the tier.
+    Save the current tier and enter deep sleep.
+    Sleep duration is normally set by the tier.
+
+    If voltage is passed and is below BATTERY_EMERGENCY_CUTOFF_V (3.0V),
+    the device sleeps for 7 days instead of the normal 24 hours.
+    This hard floor prevents the 18650 cell being damaged by repeated
+    wake cycles when solar cannot keep up with consumption.
 
     This function does not return — the Pico resets and restarts
     from the top of main.py when the sleep period ends.
     """
     save_tier(tier)
+
+    if voltage is not None and voltage < BATTERY_EMERGENCY_CUTOFF_V:
+        days = 7
+        print(f"EMERGENCY: {voltage}V below {BATTERY_EMERGENCY_CUTOFF_V}V cutoff "
+              f"— sleeping {days} days to protect battery.")
+        machine.deepsleep(days * 24 * 60 * 60 * 1000)
+
     duration_ms = get_sleep_seconds(tier) * 1000
     mins = get_sleep_seconds(tier) // 60
     print(f"Sleeping for {mins} minutes (tier {tier}). Goodbye.")

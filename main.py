@@ -43,13 +43,7 @@ print("=" * 42)
 _pending_alerts = []
 voltage, tier = power.run(send_alert=lambda msg: _pending_alerts.append(msg))
 
-# Detect whether this is a cold power-on (battery just connected / power loss)
-# vs a normal deep sleep wake or software reset.
-# machine.reset_cause() is unreliable on RP2350 — it returns PWRON_RESET even
-# after deep sleep. Instead: the Pico's RTC resets to year 2000 on any power
-# loss, so year < 2024 reliably means the battery was just connected.
-# After NTP sync the year is correct; deep sleep preserves the RTC.
-_COLD_BOOT = time.localtime()[0] < 2024
+
 
 
 # ── Startup mode ────────────────────────────────────────────────────────────
@@ -58,35 +52,21 @@ _COLD_BOOT = time.localtime()[0] < 2024
 # Makes it easy to verify WiFi signal and sensors after outdoor deployment
 # without waiting for the normal sleep cycle.
 
-def _run_startup_mode():
-    """Send sensor readings every 30 seconds for 30 minutes then sleep."""
-    DURATION_S  = 30 * 60   # total startup mode time
-    INTERVAL_S  = 30        # seconds between readings
+def _run_test_mode(wlan):
+    """
+    Send dense sensor readings for 5 minutes.
+    Triggered by sending "test" via the ntfy commands topic.
+    Useful for verifying WiFi signal and sensors after outdoor deployment.
+    WiFi is already connected when this is called — no connect/disconnect here.
+    Returns when complete; main.py continues to InfluxDB log and sleep as normal.
+    """
+    DURATION_S = 5 * 60   # 5 minutes
+    INTERVAL_S = 15        # reading every 15 seconds = 20 readings total
 
-    print("\n>>> STARTUP MODE — battery just connected <<<")
-    print(f"Sending readings every {INTERVAL_S}s for {DURATION_S // 60} minutes.")
-    print("Watch this output and Grafana to verify WiFi and sensors.\n")
-
-    try:
-        wlan, rssi = net.connect()
-    except Exception as e:
-        print(f"Startup mode: WiFi failed ({e}) — skipping startup mode.")
-        return
-
-    cloud.sync_time()
-    watchdog.feed()
-
-    # Check for OTA update before starting the data loop.
-    # If an update is found it downloads, applies, and reboots — this line
-    # won't be reached. If no update, execution continues into the loop.
-    ota.cleanup_temp_files()
-    ota.check_and_apply(send_alert=cloud.send_ntfy_alert)
-    watchdog.feed()
-
+    print("\n>>> TEST MODE — dense readings for 5 minutes <<<")
     cloud.send_ntfy_alert(
-        f"Startup mode: device powered on. "
-        f"Sending readings every {INTERVAL_S}s for {DURATION_S // 60}min. "
-        f"WiFi: {rssi} dBm."
+        f"Test mode started — sending readings every {INTERVAL_S}s "
+        f"for {DURATION_S // 60}min."
     )
 
     deadline = time.ticks_add(time.ticks_ms(), DURATION_S * 1000)
@@ -104,8 +84,8 @@ def _run_startup_mode():
         watchdog.feed()
 
         log = {
-            "battery_v":      v,
-            "wifi_rssi":      rssi,
+            "battery_v":       v,
+            "wifi_rssi":       rssi,
             "probe_sensor_ok": probe if probe is not None else True,
         }
         if w_pct is not None:
@@ -124,16 +104,13 @@ def _run_startup_mode():
         print(f"  #{reading:3d}  battery={v:.2f}V  level={level_str} {dist_str}  "
               f"probe={probe_str}  rssi={rssi}dBm  {remaining}s remaining")
 
-        # Wait for next interval, feeding watchdog throughout
         interval_end = time.ticks_add(time.ticks_ms(), INTERVAL_S * 1000)
         while time.ticks_diff(interval_end, time.ticks_ms()) > 0:
             time.sleep(1)
             watchdog.feed()
 
-    cloud.send_ntfy_alert("Startup mode complete — entering normal sleep cycle.")
-    print("Startup mode complete.")
-    net.disconnect()
-    power.go_to_sleep(tier)   # sleep normally — next wake is a normal cycle
+    cloud.send_ntfy_alert("Test mode complete.")
+    print("Test mode complete.")
 
 
 # ── Stage 2: Watchdog ───────────────────────────────────────────────────────
@@ -146,11 +123,6 @@ watchdog.feed()
 
 # Clean up any .new temp files left by an interrupted OTA update.
 ota.cleanup_temp_files()
-
-# Run startup mode if battery was just connected (not a deep sleep wake).
-# This block does not return — it sleeps at the end.
-if _COLD_BOOT:
-    _run_startup_mode()
 
 if tier == 4:
     print("Tier 4: critical hibernation — minimal wake.")
@@ -276,14 +248,19 @@ if power.commands_accepted(tier):
     water_now = "water_now" in commands
     snooze    = "snooze"    in commands
     cancel    = "cancel"    in commands
+    test      = "test"      in commands
 else:
     print(f"Tier {tier}: commands ignored.")
     cancel = False
+    test   = False
 
 if cancel:
     water_now = False
     cloud.send_ntfy_alert("Cancel received — water_now cleared.")
     print("Cancel: water_now command cleared.")
+
+if test:
+    _run_test_mode(wlan)
 
 if snooze:
     power.set_watered_today(True)
@@ -455,5 +432,4 @@ else:
 t = time.localtime()
 print(f"Wake cycle complete at {t[3]:02d}:{t[4]:02d} UTC — tier {tier} — sleeping {sleep_s // 60} min")
 
-power.save_tier(tier)
-machine.deepsleep(sleep_s * 1000)   # does not return
+power.go_to_sleep(tier, voltage=voltage)   # does not return
