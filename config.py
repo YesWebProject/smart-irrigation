@@ -43,7 +43,7 @@ CONFIG_TIMEOUT_S = 5
 # ---------------------------------------------------------------------------
 # Watering
 # ---------------------------------------------------------------------------
-WATERING_BASE_DURATION_S  = 600      # 10 minutes
+WATERING_BASE_DURATION_S  = 900      # 15 minutes
 WATERING_SUNRISE_OFFSET_M = -30      # minutes before sunrise (negative = before)
 WATERING_WINDOW_M         = 10       # ± window around target time to trigger
 RAIN_SKIP_THRESHOLD_PCT   = 60       # skip if rain probability >= this
@@ -53,9 +53,9 @@ RAIN_SKIP_THRESHOLD_PCT   = 60       # skip if rain probability >= this
 # Last entry is the catch-all for anything above the previous threshold.
 TEMP_SCALING = [
     (5,  0.0),   # at or below 5°C — no watering (frost risk)
-    (12, 0.5),
-    (18, 0.8),
-    (24, 1.0),
+    (12, 0.7),
+    (18, 1.0),
+    (24, 1.5),
     (999, 1.3),  # above 24°C
 ]
 
@@ -159,8 +159,9 @@ POST_WATER_SLEEP_S = 5 * 60   # seconds between each fast cycle (5 minutes)
 #      The Pico will pick it up the next morning during new-day detection.
 #
 # config.py and secrets.py are NEVER overwritten by OTA.
-OTA_ENABLED      = False   # set True once your GitHub repo is set up
-OTA_MANIFEST_URL = ""      # paste your raw manifest.json URL here
+OTA_ENABLED      = True   # set True once your GitHub repo is set up
+OTA_MANIFEST_URL = "https://raw.githubusercontent.com/YesWebProject/smart-irrigation/refs/heads/main/manifest.json"
+     # paste your raw manifest.json URL here
 
 # ---------------------------------------------------------------------------
 # Open-Meteo
