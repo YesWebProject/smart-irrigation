@@ -1,7 +1,7 @@
 {
-  "version": 2,
-  "notes": "Log raw water level mm for remote calibration; fix OTA version tracking",
-  "base_url": "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/",
+  "version": 3,
+  "notes": "Startup mode on power-on; offline backup watering; fix None water crash",
+  "base_url": "https://raw.githubusercontent.com/YesWebProject/smart-irrigation/main/",
   "files": [
     "main.py",
     "hardware.py",

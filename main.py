@@ -43,6 +43,94 @@ print("=" * 42)
 _pending_alerts = []
 voltage, tier = power.run(send_alert=lambda msg: _pending_alerts.append(msg))
 
+# Detect whether this is a cold power-on (battery just connected) vs a normal
+# deep sleep wake. Used to trigger startup mode below.
+_COLD_BOOT = machine.reset_cause() == machine.PWRON_RESET
+
+
+# ── Startup mode ────────────────────────────────────────────────────────────
+# Triggered only on cold power-on (battery just connected, not deep sleep wake).
+# Stays awake for 30 minutes, logging sensor readings every 30 seconds.
+# Makes it easy to verify WiFi signal and sensors after outdoor deployment
+# without waiting for the normal sleep cycle.
+
+def _run_startup_mode():
+    """Send sensor readings every 30 seconds for 30 minutes then sleep."""
+    DURATION_S  = 30 * 60   # total startup mode time
+    INTERVAL_S  = 30        # seconds between readings
+
+    print("\n>>> STARTUP MODE — battery just connected <<<")
+    print(f"Sending readings every {INTERVAL_S}s for {DURATION_S // 60} minutes.")
+    print("Watch this output and Grafana to verify WiFi and sensors.\n")
+
+    try:
+        wlan, rssi = net.connect()
+    except Exception as e:
+        print(f"Startup mode: WiFi failed ({e}) — skipping startup mode.")
+        return
+
+    cloud.sync_time()
+    watchdog.feed()
+
+    # Check for OTA update before starting the data loop.
+    # If an update is found it downloads, applies, and reboots — this line
+    # won't be reached. If no update, execution continues into the loop.
+    ota.cleanup_temp_files()
+    ota.check_and_apply(send_alert=cloud.send_ntfy_alert)
+    watchdog.feed()
+
+    cloud.send_ntfy_alert(
+        f"Startup mode: device powered on. "
+        f"Sending readings every {INTERVAL_S}s for {DURATION_S // 60}min. "
+        f"WiFi: {rssi} dBm."
+    )
+
+    deadline = time.ticks_add(time.ticks_ms(), DURATION_S * 1000)
+    reading  = 0
+
+    while time.ticks_diff(deadline, time.ticks_ms()) > 0:
+        reading += 1
+        watchdog.feed()
+
+        w_pct = hardware.read_water_level_pct()
+        w_mm  = hardware.read_water_level_mm()
+        probe = hardware.read_probe_sensor()
+        v, _  = power.run(send_alert=lambda m: None)
+        rssi  = wlan.status("rssi")
+        watchdog.feed()
+
+        log = {
+            "battery_v":      v,
+            "wifi_rssi":      rssi,
+            "probe_sensor_ok": probe if probe is not None else True,
+        }
+        if w_pct is not None:
+            log["water_level_pct"] = w_pct
+        if w_mm is not None:
+            log["water_level_mm"] = w_mm
+
+        cloud.log_to_influx(log)
+        watchdog.feed()
+
+        probe_str = "water present" if probe else ("DRY" if probe is False else "unknown")
+        level_str = f"{w_pct:.1f}%" if w_pct is not None else "no reading"
+        dist_str  = f"{w_mm}mm" if w_mm is not None else ""
+        remaining = max(0, time.ticks_diff(deadline, time.ticks_ms()) // 1000)
+
+        print(f"  #{reading:3d}  battery={v:.2f}V  level={level_str} {dist_str}  "
+              f"probe={probe_str}  rssi={rssi}dBm  {remaining}s remaining")
+
+        # Wait for next interval, feeding watchdog throughout
+        interval_end = time.ticks_add(time.ticks_ms(), INTERVAL_S * 1000)
+        while time.ticks_diff(interval_end, time.ticks_ms()) > 0:
+            time.sleep(1)
+            watchdog.feed()
+
+    cloud.send_ntfy_alert("Startup mode complete — entering normal sleep cycle.")
+    print("Startup mode complete.")
+    net.disconnect()
+    power.go_to_sleep(tier)   # sleep normally — next wake is a normal cycle
+
 
 # ── Stage 2: Watchdog ───────────────────────────────────────────────────────
 # Start the hardware watchdog now that basic boot succeeded.
@@ -54,6 +142,11 @@ watchdog.feed()
 
 # Clean up any .new temp files left by an interrupted OTA update.
 ota.cleanup_temp_files()
+
+# Run startup mode if battery was just connected (not a deep sleep wake).
+# This block does not return — it sleeps at the end.
+if _COLD_BOOT:
+    _run_startup_mode()
 
 if tier == 4:
     print("Tier 4: critical hibernation — minimal wake.")
@@ -77,7 +170,36 @@ try:
     wlan, rssi = net.connect()
     watchdog.feed()
 except RuntimeError as e:
-    print(f"WiFi failed: {e} — going back to sleep.")
+    print(f"WiFi failed: {e}")
+    # No WiFi — attempt offline cycle using stored sunrise and RTC time.
+    # If watering is due and sensors are OK, water now. Then sleep.
+    print("WiFi offline — attempting offline sensor read and watering check.")
+    try:
+        w_pct  = hardware.read_water_level_pct()
+        probe  = hardware.read_probe_sensor()
+        w_mm   = hardware.read_water_level_mm()
+        stored_sunrise = power.get_sunrise_unix()
+        if (stored_sunrise
+                and not power.get_watered_today()
+                and tier < 3
+                and (probe is not False)
+                and (w_pct is None or w_pct > WATER_PUMP_CUTOFF_PCT)):
+
+            from config import WATERING_BASE_DURATION_S, WATERING_SUNRISE_OFFSET_M, WATERING_WINDOW_M
+            import time as _t
+            now_unix    = _t.time()
+            target_unix = stored_sunrise + (WATERING_SUNRISE_OFFSET_M * 60)
+            window_s    = (WATERING_WINDOW_M + 10) * 60
+            if abs(now_unix - target_unix) <= window_s:
+                print("Offline cycle: watering window reached — running pump.")
+                def _offline_safety():
+                    watchdog.feed()
+                    return hardware.read_probe_sensor() is not False
+                ran = hardware.run_pump(int(WATERING_BASE_DURATION_S), safety_check=_offline_safety)
+                power.set_watered_today(True)
+                print(f"Offline cycle: pump ran {ran}s.")
+    except Exception as offline_e:
+        print(f"Offline cycle error: {offline_e}")
     power.go_to_sleep(tier)
 
 

@@ -162,6 +162,18 @@ def check_watering(weather, sensors, battery_v, tier):
 
     # --- Condition 4: Weather data available? ---
     if weather is None:
+        # WiFi or weather fetch failed this wake.
+        # Attempt offline backup: use stored sunrise + RTC time to decide.
+        # No temperature scaling — water for base duration only.
+        # Probe sensor still checked as safety.
+        stored_sunrise = power.get_sunrise_unix()
+        if stored_sunrise and not power.get_watered_today():
+            now_unix    = time.time()
+            target_unix = stored_sunrise + (WATERING_SUNRISE_OFFSET_M * 60)
+            window_s    = (WATERING_WINDOW_M + 10) * 60   # slightly wider window offline
+            if abs(now_unix - target_unix) <= window_s:
+                print("Decision: OFFLINE BACKUP — no weather data, using stored sunrise.")
+                return True, int(WATERING_BASE_DURATION_S), "none"
         print("Decision: skip — no weather data available.")
         return False, 0, "no_weather_data"
 
