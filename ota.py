@@ -166,21 +166,20 @@ def check_and_apply(send_alert=None):
         msg = f"OTA: partial update — some files could not be applied: {failed_apply}"
         print(msg)
         if send_alert:
-            send_alert(msg + " — rebooting anyway.")
+            send_alert(msg + " — check Thonny output on next boot.")
     else:
         print("OTA: all files applied successfully.")
+        # Save the applied version so the next check knows we are up to date
+        try:
+            with open("_ota_version", "w") as _f:
+                _f.write(str(remote_version))
+        except Exception as e:
+            print(f"OTA: could not write _ota_version: {e}")
+        if send_alert:
+            send_alert(
+                f"OTA update complete: v{remote_version} applied. Rebooting now."
+            )
 
-    # Save the applied version so the next check knows we are up to date
-    try:
-        with open("_ota_version", "w") as _f:
-            _f.write(str(remote_version))
-    except Exception as e:
-        print(f"OTA: could not write _ota_version: {e}")
-
-    if send_alert:
-        send_alert(
-            f"OTA update complete: v{remote_version} applied. Rebooting now."
-        )
 
     time.sleep(2)    # give ntfy time to send before reset
     machine.reset()  # does not return

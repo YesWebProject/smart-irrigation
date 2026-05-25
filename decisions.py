@@ -145,8 +145,10 @@ def check_watering(weather, sensors, battery_v, tier):
         return False, 0, "low_battery"
 
     # --- Condition 3: Water level too low? (pump dry-run protection) ---
-    water_pct = sensors.get("water_level_pct", 100)
-    if water_pct <= WATER_PUMP_CUTOFF_PCT:
+    # If the ultrasonic sensor gave no reading (None), skip this check and rely
+    # on the probe sensor below — a failed sensor should not block watering.
+    water_pct = sensors.get("water_level_pct")
+    if water_pct is not None and water_pct <= WATER_PUMP_CUTOFF_PCT:
         print(f"Decision: skip — water level {water_pct:.1f}% below cutoff {WATER_PUMP_CUTOFF_PCT}%.")
         return False, 0, "empty_butt"
 
