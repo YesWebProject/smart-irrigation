@@ -1,6 +1,6 @@
 {
-  "version": 4,
-  "notes": "Cancel command; fix startup mode (RTC year); offline backup watering; fix None crash",
+  "version": 5,
+  "notes": "Remove WebREPL from boot.py",
   "base_url": "https://raw.githubusercontent.com/YesWebProject/smart-irrigation/main/",
   "files": [
     "main.py",
