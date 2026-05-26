@@ -8,7 +8,6 @@
 # Protected files — never overwritten:
 #   config.py       (your calibration values and settings)
 #   secrets.py      (WiFi and API credentials)
-#   webrepl_cfg.py  (WebREPL password hash)
 #
 # How it works:
 #   1.  Fetch manifest.json from OTA_MANIFEST_URL in config.py
@@ -107,7 +106,7 @@ def check_and_apply(send_alert=None):
     print(f"OTA: update available — v{local_version} → v{remote_version}")
     if send_alert:
         send_alert(
-            f"OTA update starting: v{CODE_VERSION} → v{remote_version}. "
+            f"OTA update starting: v{local_version} → v{remote_version}. "
             "Device will reboot when complete."
         )
 

@@ -71,7 +71,7 @@ def _is_watering_time(sunrise_unix):
     current_secs = now[3] * 3600 + now[4] * 60 + now[5]
 
     sr           = time.localtime(sunrise_unix)
-    sunrise_secs = sr[3] * 3600 + sr[4] * 60
+    sunrise_secs = sr[3] * 3600 + sr[4] * 60 + sr[5]
 
     target_secs  = sunrise_secs + (WATERING_SUNRISE_OFFSET_M * 60)
     window_secs  = WATERING_WINDOW_M * 60
@@ -101,9 +101,9 @@ def check_frost_alert(weather, send_alert):
     """
     if weather is None:
         return False
-    temp_max = weather.get("temp_max")
-    if temp_max is not None and temp_max <= FROST_THRESHOLD_C:
-        send_alert(f"Frost warning: forecast max {temp_max}°C — watering skipped.")
+    temp_min = weather.get("temp_min")
+    if temp_min is not None and temp_min <= FROST_THRESHOLD_C:
+        send_alert(f"Frost warning: forecast min {temp_min}°C — watering skipped.")
         return True
     return False
 
@@ -178,9 +178,9 @@ def check_watering(weather, sensors, battery_v, tier):
         return False, 0, "no_weather_data"
 
     # --- Condition 5: Frost forecast? ---
-    temp_max = weather.get("temp_max")
-    if temp_max is not None and temp_max <= FROST_THRESHOLD_C:
-        print(f"Decision: skip — frost forecast ({temp_max}°C).")
+    temp_min = weather.get("temp_min")
+    if temp_min is not None and temp_min <= FROST_THRESHOLD_C:
+        print(f"Decision: skip — frost forecast (min {temp_min}°C).")
         return False, 0, "frost"
 
     # --- Condition 6: Rain forecast? ---
@@ -200,6 +200,7 @@ def check_watering(weather, sensors, battery_v, tier):
         return False, 0, "not_time"
 
     # --- All conditions passed — calculate duration ---
+    temp_max = weather.get("temp_max")
     duration = get_watering_duration(temp_max if temp_max is not None else 18.0)
 
     if duration == 0:
@@ -208,8 +209,9 @@ def check_watering(weather, sensors, battery_v, tier):
         print(f"Decision: skip — temperature multiplier is 0 at {temp_max}°C.")
         return False, 0, "frost"
 
+    water_str = f"{water_pct:.1f}%" if water_pct is not None else "N/A"
     print(
         f"Decision: WATER for {duration}s "
-        f"(temp={temp_max}°C, rain={rain_pct}%, water={water_pct:.1f}%)"
+        f"(temp={temp_max}°C, rain={rain_pct}%, water={water_str})"
     )
     return True, duration, "none"

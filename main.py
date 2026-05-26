@@ -401,6 +401,8 @@ log_data = {
 if weather is not None:
     if weather.get("temp_max") is not None:
         log_data["forecast_temp_max_c"] = weather["temp_max"]
+    if weather.get("temp_min") is not None:
+        log_data["forecast_temp_min_c"] = weather["temp_min"]
     if weather.get("rain_pct") is not None:
         log_data["forecast_rain_pct"] = weather["rain_pct"]
 

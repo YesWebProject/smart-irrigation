@@ -67,6 +67,7 @@ def send_ntfy_alert(message):
             f"https://ntfy.sh/{secrets.NTFY_ALERTS_TOPIC}",
             data=message,
             headers={"Content-Type": "text/plain"},
+            timeout=NTFY_TIMEOUT_S,
         )
         r.close()
         print(f"Alert sent: {message}")
@@ -90,7 +91,7 @@ def check_ntfy_commands(sleep_seconds):
     try:
         since = f"{int(sleep_seconds)}s"
         url   = f"https://ntfy.sh/{secrets.NTFY_COMMANDS_TOPIC}/json?poll=1&since={since}"
-        r     = urequests.get(url)
+        r     = urequests.get(url, timeout=NTFY_TIMEOUT_S)
         text  = r.text.strip()
         r.close()
 
@@ -176,7 +177,7 @@ def log_to_influx(fields):
             "Authorization": f"Token {secrets.INFLUX_TOKEN}",
             "Content-Type":  "text/plain; charset=utf-8",
         }
-        r = urequests.post(url, data=line, headers=headers)
+        r = urequests.post(url, data=line, headers=headers, timeout=INFLUX_TIMEOUT_S)
         r.close()
         print(f"InfluxDB: logged {list(fields.keys())}")
 
@@ -202,13 +203,14 @@ def fetch_weather():
     Returns None on failure — decisions.py will skip watering if None.
     """
     try:
-        r    = urequests.get(OPENMETEO_URL)
+        r    = urequests.get(OPENMETEO_URL, timeout=10)
         data = json.loads(r.text)
         r.close()
 
         daily      = data["daily"]
         rain_pct   = daily["precipitation_probability_max"][0]
         temp_max   = daily["temperature_2m_max"][0]
+        temp_min   = daily["temperature_2m_min"][0]
         sunrise_str = daily["sunrise"][0]   # e.g. "2024-05-15T05:23"
 
         # Parse sunrise string to unix timestamp
@@ -218,11 +220,12 @@ def fetch_weather():
         hour, minute         = [int(x) for x in time_part.split(":")]
         sunrise_unix = time.mktime((year, month, day, hour, minute, 0, 0, 0))
 
-        print(f"Weather: rain={rain_pct}%  sunrise={sunrise_str}  max_temp={temp_max}°C")
+        print(f"Weather: rain={rain_pct}%  sunrise={sunrise_str}  max={temp_max}°C  min={temp_min}°C")
         return {
             "rain_pct":     rain_pct,
             "sunrise_unix": sunrise_unix,
             "temp_max":     temp_max,
+            "temp_min":     temp_min,
         }
 
     except Exception as e:
@@ -363,7 +366,7 @@ def fetch_remote_config():
         return None
 
     try:
-        r      = urequests.get(secrets.GIST_URL)
+        r      = urequests.get(secrets.GIST_URL, timeout=CONFIG_TIMEOUT_S)
         config = json.loads(r.text)
         r.close()
         version = config.get("config_version", "?")
