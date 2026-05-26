@@ -74,6 +74,22 @@ class WaterLevel:
 
         return None   # timed out
 
+    def _read_median_mm(self, samples=3, delay_ms=120):
+        """
+        Take multiple readings and return the median — rejects single bad readings
+        caused by condensation on the sensor face inside the water butt.
+        """
+        readings = []
+        for _ in range(samples):
+            d = self._read_distance_mm()
+            if d is not None:
+                readings.append(d)
+            time.sleep_ms(delay_ms)
+        if not readings:
+            return None
+        readings.sort()
+        return readings[len(readings) // 2]
+
     def read_percent(self):
         """
         Read water level as a percentage (0-100%).
@@ -84,11 +100,18 @@ class WaterLevel:
             SENSOR_DISTANCE_FULL_MM  = distance when butt is full  (small number, e.g. 100mm)
             SENSOR_DISTANCE_EMPTY_MM = distance when butt is empty (large number, e.g. 800mm)
         """
-        distance      = self._read_distance_mm()
+        distance      = self._read_median_mm()
         self._last_mm = distance   # cache raw reading -- None if sensor failed
 
         if distance is None:
             print("Water level: no valid reading.")
+            return None
+
+        # Reject readings closer than full-mark minus 20mm — physically impossible,
+        # likely condensation on the sensor face causing a spuriously short echo
+        if distance < SENSOR_DISTANCE_FULL_MM - 20:
+            print(f"Water level: {distance}mm rejected (closer than full mark minus 20mm)")
+            self._last_mm = None
             return None
 
         pct = ((SENSOR_DISTANCE_EMPTY_MM - distance) /

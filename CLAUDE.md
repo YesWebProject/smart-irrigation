@@ -1,0 +1,109 @@
+# Smart Solar Irrigation System — Project Context
+
+## What this is
+A solar-powered automatic irrigation system for a garden water butt in Devon (TQ12 area).
+A Raspberry Pi Pico 2W runs MicroPython, wakes from deep sleep periodically, reads sensors,
+fetches weather data, and decides whether to water. All cloud services are fully set up.
+
+## Hardware
+- **MCU:** Raspberry Pi Pico 2W (RP2350 chip, MicroPython v1.28.0)
+- **Sensor:** A02YYUW ultrasonic water level sensor — UART on GP1 (RX), 9600 baud
+- **Probe:** Metal conductivity sensor — GP14, internal pull-up, LOW = water present
+- **Pump:** 12V pump via IRLZ44N MOSFET on GP15
+- **Battery:** Single 18650 cell via AnseTo solar charging module
+- **Voltage divider:** Equal 10kΩ/10kΩ resistors on GP26 (ADC) — ratio 0.5
+- **Water butt:** ~50cm wide × 1m tall, sensor mounted in lid pointing straight down
+
+## Cloud stack (all configured and working)
+- **InfluxDB Cloud** — bucket: `irrigation`, Flux query language
+- **Grafana Cloud** — connected to InfluxDB, dashboard imported
+- **ntfy.sh** — alerts topic and commands topic configured (long random names in secrets.py)
+- **GitHub** — repo: `YesWebProject/smart-irrigation` (public, OTA source)
+- **GitHub Gist** — `irrigation_config.json` — runtime config overrides
+
+## File responsibilities
+
+| File | Where it lives | Purpose |
+|---|---|---|
+| `main.py` | Pico + GitHub | Wake cycle orchestrator — runs top to bottom on every wake |
+| `hardware.py` | Pico + GitHub | A02YYUW sensor (with median filter), probe sensor, pump driver |
+| `decisions.py` | Pico + GitHub | Watering logic — all conditions evaluated here |
+| `power.py` | Pico + GitHub | Battery voltage, tier classification, state.bin, deep sleep |
+| `network_manager.py` | Pico + GitHub | WiFi connect/disconnect |
+| `cloud.py` | Pico + GitHub | NTP sync (3 retries), ntfy, InfluxDB, Open-Meteo, Gist fetch |
+| `watchdog.py` | Pico + GitHub | Hardware watchdog — 8 second timeout |
+| `ota.py` | Pico + GitHub | OTA update system |
+| `boot.py` | Pico + GitHub | Minimal — no WebREPL (removed) |
+| `manifest.json` | GitHub only | OTA version manifest |
+| `config.py` | Pico + PC only | Settings and calibration — NEVER in GitHub, NEVER OTA'd |
+| `secrets.py` | Pico + PC only | Credentials — NEVER in GitHub, NEVER OTA'd |
+| `CLAUDE.md` | PC only | This file |
+| `.gitignore` | PC + GitHub | Excludes secrets.py and junk |
+
+## OTA update system
+- Pico checks `manifest.json` on GitHub once per day (on new sunrise detection)
+- Version tracked in `_ota_version` file on Pico flash (NOT config.py — that's protected)
+- To push an update: edit files, bump `"version"` in manifest.json, git push
+- Protected files (NEVER overwritten by OTA): `config.py`, `secrets.py`, `state.bin`, `_ota_version`
+- `config.py` changes always need manual Thonny upload — plan accordingly
+
+**Current manifest version: 10**
+
+## Battery power tiers
+| Voltage | Tier | Sleep | Commands |
+|---|---|---|---|
+| > 3.9V | 1 | 30 min | Accepted |
+| 3.6–3.9V | 2 | 60 min | Accepted |
+| 3.3–3.6V | 3 | 4 hours | Ignored |
+| 3.0–3.3V | 4 | 24 hours | Ignored |
+| < 3.0V | Emergency | 7 days | Hard cutoff |
+
+## ntfy commands (sent to commands topic)
+| Command | Effect |
+|---|---|
+| `water_now` | Run pump immediately |
+| `snooze` | Skip today's scheduled watering |
+| `cancel` | Clear a pending water_now |
+| `test` | 5-minute dense readings (15s interval) — for signal/sensor verification |
+
+## Persistent state (state.bin on Pico flash)
+11-byte binary file — survives deep sleep. Managed entirely by power.py.
+- Byte 0: last battery tier
+- Byte 1: watered today flag
+- Bytes 2-5: reserved
+- Bytes 6-9: today's sunrise unix timestamp
+- Byte 10: post-water fast monitoring cycles remaining
+
+## Watering logic
+- Triggers once per day, 30 minutes before sunrise (configurable via Gist)
+- Skips if: already watered today, rain > 60%, frost forecast, probe dry, water level < 5%, battery Tier 3+
+- Offline backup: if WiFi fails, uses stored sunrise + RTC time to water at base duration
+- All thresholds overridable via GitHub Gist without code changes
+
+## Gist remote config
+Edit `irrigation_config.json` on gist.github.com to change settings without code changes.
+Pico fetches it every wake cycle. Changes take effect within 30 minutes.
+Key fields: `watering.base_duration_s`, `watering.sunrise_offset_min`,
+`water_level.sensor_distance_empty_mm`, `water_level.sensor_distance_full_mm`,
+`battery.emergency_cutoff_v`, `sleep.tier1_interval_min`
+
+## Known hardware notes
+- Battery voltage reads ~0.3V high when USB is connected (AnseTo charging)
+- A02YYUW gets condensation on face (water butt humidity) — median filter in hardware.py rejects single bad readings
+- WiFi signal: -76 dBm (marginal but workable via extender)
+- NTP sync: retries 3 times with 2s delay — occasional failures normal at this signal level
+
+## Git workflow
+```bash
+# Standard update
+git add <changed files> manifest.json
+git commit -m "vN: description"
+git push
+# Pico OTA's automatically next morning, or delete state.bin to force immediately
+```
+
+## What requires Thonny (USB)
+- Uploading `config.py` after changes (protected from OTA)
+- Direct debugging / running test_sensor.py
+- Checking Pico filesystem
+- Manual file management (e.g. deleting state.bin to force OTA)

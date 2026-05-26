@@ -30,20 +30,25 @@ from config import (
 # ---------------------------------------------------------------------------
 # Time sync
 # ---------------------------------------------------------------------------
-def sync_time():
+def sync_time(retries=3, delay_s=2):
     """
     Sync the Pico's internal clock from NTP.
     Call this once after WiFi connects, before anything that needs timestamps.
     Returns True on success, False on failure.
     """
-    try:
-        ntptime.settime()
-        t = time.localtime()
-        print(f"Time synced: {t[0]}-{t[1]:02d}-{t[2]:02d} {t[3]:02d}:{t[4]:02d} UTC")
-        return True
-    except Exception as e:
-        print(f"NTP sync failed: {e} — timestamps may be inaccurate")
-        return False
+    for attempt in range(1, retries + 1):
+        try:
+            ntptime.settime()
+            t = time.localtime()
+            print(f"Time synced: {t[0]}-{t[1]:02d}-{t[2]:02d} {t[3]:02d}:{t[4]:02d} UTC")
+            return True
+        except Exception as e:
+            if attempt < retries:
+                print(f"NTP sync attempt {attempt} failed — retrying")
+                time.sleep(delay_s)
+            else:
+                print(f"NTP sync failed after {retries} attempts: {e} — timestamps may be inaccurate")
+    return False
 
 
 # ---------------------------------------------------------------------------

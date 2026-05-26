@@ -1,6 +1,6 @@
 {
-  "version": 8,
-  "notes": "Emergency battery cutoff \u2014 configurable via Gist",
+  "version": 10,
+  "notes": "Median filter + bounds check on water level sensor; NTP retry logic",
   "base_url": "https://raw.githubusercontent.com/YesWebProject/smart-irrigation/main/",
   "files": [
     "main.py",

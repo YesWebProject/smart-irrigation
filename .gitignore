@@ -1,5 +1,15 @@
+# Smart Irrigation — Git ignore rules
+# Files listed here are NEVER uploaded to GitHub, even if you run "git add ."
+
+# Credentials — must never be on GitHub
 secrets.py
+
+# MicroPython compiled bytecode
 *.pyc
 __pycache__/
+
+# macOS junk
 .DS_Store
+
+# Windows junk
 Thumbs.db
