@@ -28,6 +28,7 @@ import network_manager as net
 import cloud
 import hardware
 import decisions
+import config
 
 from config import WATER_PUMP_CUTOFF_PCT, POST_WATER_CYCLES, POST_WATER_SLEEP_S
 
@@ -326,6 +327,7 @@ watchdog.feed()
 
 pump_runtime_s     = 0
 pump_stopped_early = False
+pump_health_warning = False
 
 def _pump_safety_ok():
     """
@@ -356,19 +358,39 @@ if water_now and power.commands_accepted(tier):
     else:
         run_for = duration_s if duration_s > 0 else 600
         print(f"Running pump: water_now command for {run_for}s")
-        pump_runtime_s     = hardware.run_pump(run_for, safety_check=_pump_safety_ok)
-        pump_stopped_early = pump_runtime_s < run_for
+        water_mm_before     = hardware.read_water_level_mm()
+        pump_runtime_s      = hardware.run_pump(run_for, safety_check=_pump_safety_ok)
+        pump_stopped_early  = pump_runtime_s < run_for
+        hardware.read_water_level_pct()          # refreshes internal cache
+        water_mm_after      = hardware.read_water_level_mm()
+        pump_health_warning = decisions.check_pump_health(
+            water_mm_before, water_mm_after, pump_runtime_s, pump_stopped_early
+        )
         power.set_watered_today(True)
         power.set_post_water_cycles(POST_WATER_CYCLES)
         msg = f"Manual watering complete: {pump_runtime_s}s"
         if pump_stopped_early:
             msg += " — stopped early by safety sensor"
+        if pump_health_warning:
+            msg += " — PUMP HEALTH WARNING: low flow detected"
         cloud.send_ntfy_alert(msg)
+        if pump_health_warning:
+            cloud.send_ntfy_alert(
+                f"Pump health warning: sensor distance only increased "
+                f"{water_mm_after - water_mm_before}mm after {pump_runtime_s}s. "
+                "Check pump / water supply."
+            )
 
 elif should_water:
     print(f"Running pump: scheduled watering for {duration_s}s")
-    pump_runtime_s     = hardware.run_pump(duration_s, safety_check=_pump_safety_ok)
-    pump_stopped_early = pump_runtime_s < duration_s
+    water_mm_before     = hardware.read_water_level_mm()
+    pump_runtime_s      = hardware.run_pump(duration_s, safety_check=_pump_safety_ok)
+    pump_stopped_early  = pump_runtime_s < duration_s
+    hardware.read_water_level_pct()              # refreshes internal cache
+    water_mm_after      = hardware.read_water_level_mm()
+    pump_health_warning = decisions.check_pump_health(
+        water_mm_before, water_mm_after, pump_runtime_s, pump_stopped_early
+    )
     power.set_watered_today(True)
     power.set_post_water_cycles(POST_WATER_CYCLES)
     msg = f"Watering complete: {pump_runtime_s}s"
@@ -376,7 +398,15 @@ elif should_water:
         msg += " — stopped early by safety sensor"
     if water_pct is not None:
         msg += f" | level={water_pct:.1f}%"
+    if pump_health_warning:
+        msg += " — PUMP HEALTH WARNING: low flow detected"
     cloud.send_ntfy_alert(msg)
+    if pump_health_warning:
+        cloud.send_ntfy_alert(
+            f"Pump health warning: sensor distance only increased "
+            f"{water_mm_after - water_mm_before}mm after {pump_runtime_s}s. "
+            "Check pump / water supply."
+        )
 
 else:
     if skip_reason not in ("not_time", "already_watered"):
@@ -388,13 +418,17 @@ watchdog.feed()
 # ── Stage 14: Log to InfluxDB ───────────────────────────────────────────────
 
 log_data = {
-    "battery_v":          voltage,
-    "wifi_rssi":          rssi,
-    "pump_runtime_s":     pump_runtime_s,
-    "pump_stopped_early": pump_stopped_early,
-    "skip_reason":        "none" if (should_water or water_now) else skip_reason,
-    "probe_sensor_ok":    probe_ok if probe_ok is not None else True,
-    "time_synced":        time_synced,
+    "battery_v":               voltage,
+    "wifi_rssi":               rssi,
+    "pump_runtime_s":          pump_runtime_s,
+    "pump_stopped_early":      pump_stopped_early,
+    "pump_health_warning":     pump_health_warning,
+    "skip_reason":             "none" if (should_water or water_now) else skip_reason,
+    "probe_sensor_ok":         probe_ok if probe_ok is not None else True,
+    "time_synced":             time_synced,
+    # Calibration reference values (post-Gist override) — used for Grafana reference lines
+    "sensor_distance_full_mm":  config.SENSOR_DISTANCE_FULL_MM,
+    "sensor_distance_empty_mm": config.SENSOR_DISTANCE_EMPTY_MM,
 }
 
 # Log Open-Meteo forecast values so they appear on Grafana graphs

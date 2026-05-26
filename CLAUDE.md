@@ -47,7 +47,7 @@ fetches weather data, and decides whether to water. All cloud services are fully
 - Protected files (NEVER overwritten by OTA): `config.py`, `secrets.py`, `state.bin`, `_ota_version`
 - `config.py` changes always need manual Thonny upload — plan accordingly
 
-**Current manifest version: 11**
+**Current manifest version: 12**
 
 ## Battery power tiers
 | Voltage | Tier | Sleep | Commands |
@@ -84,6 +84,7 @@ fetches weather data, and decides whether to water. All cloud services are fully
 Edit `irrigation_config.json` on gist.github.com to change settings without code changes.
 Pico fetches it every wake cycle. Changes take effect within 30 minutes.
 Key fields: `watering.base_duration_s`, `watering.sunrise_offset_min`,
+`watering.pump_min_runtime_for_check_s`, `watering.pump_min_drop_mm`,
 `water_level.sensor_distance_empty_mm`, `water_level.sensor_distance_full_mm`,
 `battery.emergency_cutoff_v`, `sleep.tier1_interval_min`
 

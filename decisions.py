@@ -215,3 +215,50 @@ def check_watering(weather, sensors, battery_v, tier):
         f"(temp={temp_max}°C, rain={rain_pct}%, water={water_str})"
     )
     return True, duration, "none"
+
+
+# ---------------------------------------------------------------------------
+# Pump health check
+# ---------------------------------------------------------------------------
+def check_pump_health(water_mm_before, water_mm_after, pump_runtime_s, pump_stopped_early):
+    """
+    Compare pre- and post-pump sensor distance readings to detect a blocked
+    or failed pump.
+
+    The A02YYUW measures distance from sensor to water surface.  When the pump
+    is running, water is removed from the butt so the surface drops and the
+    distance *increases*.  If the distance barely changed the pump probably
+    didn't move any water.
+
+    Returns True (warning) if:
+      - both readings are available
+      - pump ran for at least PUMP_MIN_RUNTIME_FOR_CHECK_S seconds
+      - pump was NOT stopped early by a safety sensor
+      - distance increased by less than PUMP_MIN_DROP_MM mm
+
+    Returns False (healthy / not checked) otherwise.
+
+    Uses getattr() for the new constants so a Pico still running the old
+    config.py (before manual Thonny upload) gets the built-in defaults.
+    """
+    import config as _cfg
+    min_runtime = getattr(_cfg, "PUMP_MIN_RUNTIME_FOR_CHECK_S", 120)
+    min_drop    = getattr(_cfg, "PUMP_MIN_DROP_MM", 30)
+
+    if water_mm_before is None or water_mm_after is None:
+        print("Pump health: skipped — sensor reading unavailable.")
+        return False
+    if pump_stopped_early:
+        print("Pump health: skipped — pump stopped early by safety sensor.")
+        return False
+    if pump_runtime_s < min_runtime:
+        print(f"Pump health: skipped — runtime {pump_runtime_s}s < minimum {min_runtime}s.")
+        return False
+
+    drop_mm = water_mm_after - water_mm_before   # positive = distance grew = water level fell
+    if drop_mm < min_drop:
+        print(f"Pump health: WARNING — distance increased by only {drop_mm}mm (expected >{min_drop}mm).")
+        return True
+
+    print(f"Pump health: OK — distance increased by {drop_mm}mm.")
+    return False

@@ -251,7 +251,8 @@ def apply_remote_config(remote_cfg):
     Gist JSON structure expected:
         {
           "config_version": 1,
-          "watering": { "base_duration_s": 600, "sunrise_offset_min": -30, ... },
+          "watering": { "base_duration_s": 600, "sunrise_offset_min": -30,
+                        "pump_min_runtime_for_check_s": 120, "pump_min_drop_mm": 30, ... },
           "water_level": { "sensor_distance_empty_mm": 800, ... },
           "battery":  { "tier1_v": 3.9, ... },
           "alerts":   { "frost_threshold_c": 2.0, ... },
@@ -280,10 +281,12 @@ def apply_remote_config(remote_cfg):
 
     # Watering settings
     w = remote_cfg.get("watering", {})
-    _set("WATERING_BASE_DURATION_S",  w.get("base_duration_s"))
-    _set("WATERING_SUNRISE_OFFSET_M", w.get("sunrise_offset_min"))
-    _set("WATERING_WINDOW_M",         w.get("watering_window_min"))
-    _set("RAIN_SKIP_THRESHOLD_PCT",   w.get("rain_probability_threshold_pct"))
+    _set("WATERING_BASE_DURATION_S",       w.get("base_duration_s"))
+    _set("WATERING_SUNRISE_OFFSET_M",      w.get("sunrise_offset_min"))
+    _set("WATERING_WINDOW_M",              w.get("watering_window_min"))
+    _set("RAIN_SKIP_THRESHOLD_PCT",        w.get("rain_probability_threshold_pct"))
+    _set("PUMP_MIN_RUNTIME_FOR_CHECK_S",   w.get("pump_min_runtime_for_check_s"))
+    _set("PUMP_MIN_DROP_MM",               w.get("pump_min_drop_mm"))
 
     # Temperature scaling (list of {below_c/above_c, multiplier} dicts → list of tuples)
     ts = w.get("temp_scaling")

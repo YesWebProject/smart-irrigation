@@ -240,6 +240,34 @@
                     "refId": "A",
                     "hidden": false
                   }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "from(bucket: \"irrigation\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"sensor_distance_full_mm\")\n  |> last()" }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "from(bucket: \"irrigation\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"sensor_distance_empty_mm\")\n  |> last()" }
+                    },
+                    "refId": "C",
+                    "hidden": false
+                  }
                 }
               ],
               "transformations": [],
@@ -266,7 +294,30 @@
                   "color": { "mode": "fixed", "fixedColor": "purple" },
                   "custom": { "fillOpacity": 6, "lineWidth": 2 }
                 },
-                "overrides": []
+                "overrides": [
+                  {
+                    "matcher": { "id": "byName", "options": "sensor_distance_full_mm" },
+                    "properties": [
+                      { "id": "displayName",       "value": "Full (calibration)" },
+                      { "id": "color",             "value": { "mode": "fixed", "fixedColor": "teal" } },
+                      { "id": "custom.lineStyle",  "value": { "dash": [8, 4], "fill": "dash" } },
+                      { "id": "custom.fillOpacity","value": 0 },
+                      { "id": "custom.lineWidth",  "value": 2 },
+                      { "id": "custom.pointSize",  "value": 8 }
+                    ]
+                  },
+                  {
+                    "matcher": { "id": "byName", "options": "sensor_distance_empty_mm" },
+                    "properties": [
+                      { "id": "displayName",       "value": "Empty (calibration)" },
+                      { "id": "color",             "value": { "mode": "fixed", "fixedColor": "orange" } },
+                      { "id": "custom.lineStyle",  "value": { "dash": [8, 4], "fill": "dash" } },
+                      { "id": "custom.fillOpacity","value": 0 },
+                      { "id": "custom.lineWidth",  "value": 2 },
+                      { "id": "custom.pointSize",  "value": 8 }
+                    ]
+                  }
+                ]
               }
             }
           }
