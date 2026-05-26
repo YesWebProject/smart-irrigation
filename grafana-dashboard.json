@@ -1,0 +1,1099 @@
+{
+  "apiVersion": "dashboard.grafana.app/v2",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "smart-irrigation-v1",
+    "namespace": "stacks-1662876",
+    "uid": "420ee92c-6625-47fe-9b84-d894d82b96ba",
+    "resourceVersion": "2059026368628261656",
+    "generation": 1,
+    "creationTimestamp": "2026-05-25T21:38:35Z",
+    "labels": {
+      "grafana.app/deprecatedInternalID": "881338877411328"
+    },
+    "annotations": {
+      "grafana.app/createdBy": "user:ffmunuqar0c1se",
+      "grafana.app/folder": "",
+      "grafana.app/saved-from-ui": "Grafana Cloud"
+    }
+  },
+  "spec": {
+    "annotations": [
+      {
+        "kind": "AnnotationQuery",
+        "spec": {
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana",
+            "version": "v0",
+            "datasource": { "name": "-- Grafana --" },
+            "spec": {}
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "builtIn": true,
+          "legacyOptions": { "type": "dashboard" }
+        }
+      }
+    ],
+    "cursorSync": "Crosshair",
+    "description": "Smart Solar Irrigation System — Raspberry Pi Pico 2W · A02YYUW · Probe Sensor · 18650 · AnseTo Solar",
+    "editable": true,
+    "elements": {
+      "panel-1": {
+        "kind": "Panel",
+        "spec": {
+          "id": 1,
+          "title": "Water Level",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "from(bucket: \"irrigation\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"water_level_pct\")\n  |> last()" }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "",
+            "spec": {
+              "options": {
+                "colorMode": "background",
+                "graphMode": "none",
+                "orientation": "auto",
+                "reduceOptions": { "calcs": ["lastNotNull"] },
+                "textMode": "auto"
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "percent",
+                  "min": 0,
+                  "max": 100,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      { "value": null, "color": "red" },
+                      { "value": 15, "color": "orange" },
+                      { "value": 40, "color": "green" }
+                    ]
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-10": {
+        "kind": "Panel",
+        "spec": {
+          "id": 10,
+          "title": "Water Level",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "from(bucket: \"irrigation\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"water_level_pct\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)" }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "",
+            "spec": {
+              "options": {
+                "legend": { "displayMode": "list", "placement": "bottom" },
+                "tooltip": { "mode": "single" }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "percent",
+                  "min": 0,
+                  "max": 100,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      { "value": null, "color": "red" },
+                      { "value": 15, "color": "orange" },
+                      { "value": 40, "color": "green" }
+                    ]
+                  },
+                  "color": { "mode": "thresholds" },
+                  "custom": { "fillOpacity": 15, "lineWidth": 2 }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-11": {
+        "kind": "Panel",
+        "spec": {
+          "id": 11,
+          "title": "Pump Runs",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "from(bucket: \"irrigation\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"pump_runtime_s\")\n  |> filter(fn: (r) => r._value > 0)\n  |> aggregateWindow(every: 1d, fn: sum, createEmpty: false)" }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "barchart",
+            "version": "",
+            "spec": {
+              "options": {
+                "legend": { "displayMode": "list", "placement": "bottom" },
+                "tooltip": { "mode": "single" },
+                "xTickLabelRotation": -45
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "s",
+                  "color": { "mode": "fixed", "fixedColor": "blue" }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-12": {
+        "kind": "Panel",
+        "spec": {
+          "id": 12,
+          "title": "Raw Sensor Distance (mm) — for calibration",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "from(bucket: \"irrigation\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"water_level_mm\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)" }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "",
+            "spec": {
+              "options": {
+                "legend": { "displayMode": "list", "placement": "bottom" },
+                "tooltip": { "mode": "single" }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "lengthmm",
+                  "decimals": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [{ "value": null, "color": "purple" }]
+                  },
+                  "color": { "mode": "fixed", "fixedColor": "purple" },
+                  "custom": { "fillOpacity": 6, "lineWidth": 2 }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-2": {
+        "kind": "Panel",
+        "spec": {
+          "id": 2,
+          "title": "Battery Voltage",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "from(bucket: \"irrigation\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"battery_v\")\n  |> last()" }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "",
+            "spec": {
+              "options": {
+                "colorMode": "background",
+                "graphMode": "none",
+                "reduceOptions": { "calcs": ["lastNotNull"] }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "volt",
+                  "decimals": 2,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      { "value": null, "color": "red" },
+                      { "value": 3.3, "color": "orange" },
+                      { "value": 3.6, "color": "yellow" },
+                      { "value": 3.9, "color": "green" }
+                    ]
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-20": {
+        "kind": "Panel",
+        "spec": {
+          "id": 20,
+          "title": "Battery Voltage",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "from(bucket: \"irrigation\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"battery_v\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)" }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "",
+            "spec": {
+              "options": {
+                "tooltip": { "mode": "single" }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "volt",
+                  "decimals": 2,
+                  "min": 3,
+                  "max": 4.3,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      { "value": null, "color": "red" },
+                      { "value": 3.3, "color": "orange" },
+                      { "value": 3.6, "color": "yellow" },
+                      { "value": 3.9, "color": "green" }
+                    ]
+                  },
+                  "color": { "mode": "thresholds" },
+                  "custom": { "lineWidth": 2 }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-21": {
+        "kind": "Panel",
+        "spec": {
+          "id": 21,
+          "title": "Forecast Temperature Max / Min (Open-Meteo)",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "from(bucket: \"irrigation\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"forecast_temp_max_c\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)" }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "from(bucket: \"irrigation\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"forecast_temp_min_c\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)" }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "",
+            "spec": {
+              "options": {
+                "legend": { "displayMode": "list", "placement": "bottom" },
+                "tooltip": { "mode": "multi" }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "celsius",
+                  "decimals": 1,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      { "value": null, "color": "blue" },
+                      { "value": 2, "color": "light-blue" },
+                      { "value": 5, "color": "green" },
+                      { "value": 24, "color": "yellow" },
+                      { "value": 35, "color": "red" }
+                    ]
+                  },
+                  "color": { "mode": "thresholds" },
+                  "custom": { "fillOpacity": 8, "lineWidth": 2 }
+                },
+                "overrides": [
+                  {
+                    "matcher": { "id": "byName", "options": "forecast_temp_min_c" },
+                    "properties": [
+                      { "id": "color", "value": { "mode": "fixed", "fixedColor": "light-blue" } },
+                      { "id": "custom.lineStyle", "value": { "dash": [8, 4], "fill": "dash" } },
+                      { "id": "custom.fillOpacity", "value": 0 }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-22": {
+        "kind": "Panel",
+        "spec": {
+          "id": 22,
+          "title": "WiFi Signal Strength",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "from(bucket: \"irrigation\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"wifi_rssi\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)" }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "",
+            "spec": {
+              "options": {
+                "tooltip": { "mode": "single" }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "dBm",
+                  "min": -100,
+                  "max": -40,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      { "value": null, "color": "red" },
+                      { "value": -80, "color": "orange" },
+                      { "value": -70, "color": "yellow" },
+                      { "value": -60, "color": "green" }
+                    ]
+                  },
+                  "color": { "mode": "thresholds" },
+                  "custom": { "fillOpacity": 8, "lineWidth": 2 }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-3": {
+        "kind": "Panel",
+        "spec": {
+          "id": 3,
+          "title": "Forecast Temp Max / Min",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "from(bucket: \"irrigation\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"forecast_temp_max_c\")\n  |> last()" }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "from(bucket: \"irrigation\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"forecast_temp_min_c\")\n  |> last()" }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "",
+            "spec": {
+              "options": {
+                "colorMode": "background",
+                "graphMode": "none",
+                "orientation": "horizontal",
+                "reduceOptions": { "calcs": ["lastNotNull"] }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "celsius",
+                  "decimals": 1,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      { "value": null, "color": "blue" },
+                      { "value": 5, "color": "green" },
+                      { "value": 24, "color": "yellow" },
+                      { "value": 35, "color": "red" }
+                    ]
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": { "id": "byName", "options": "forecast_temp_max_c" },
+                    "properties": [{ "id": "displayName", "value": "Max" }]
+                  },
+                  {
+                    "matcher": { "id": "byName", "options": "forecast_temp_min_c" },
+                    "properties": [{ "id": "displayName", "value": "Min" }]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-30": {
+        "kind": "Panel",
+        "spec": {
+          "id": 30,
+          "title": "Forecast Rain Probability (Open-Meteo)",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "from(bucket: \"irrigation\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"forecast_rain_pct\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)" }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "",
+            "spec": {
+              "options": {
+                "tooltip": { "mode": "single" }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "percent",
+                  "min": 0,
+                  "max": 100,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      { "value": null, "color": "green" },
+                      { "value": 40, "color": "yellow" },
+                      { "value": 60, "color": "blue" }
+                    ]
+                  },
+                  "color": { "mode": "thresholds" },
+                  "custom": { "fillOpacity": 15, "lineWidth": 2 }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-31": {
+        "kind": "Panel",
+        "spec": {
+          "id": 31,
+          "title": "Watering Duration per Day",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "from(bucket: \"irrigation\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"pump_runtime_s\")\n  |> filter(fn: (r) => r._value > 0)\n  |> aggregateWindow(every: 1d, fn: sum, createEmpty: false)" }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "",
+            "spec": {
+              "options": {
+                "tooltip": { "mode": "single" }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "s",
+                  "min": 0,
+                  "color": { "mode": "fixed", "fixedColor": "#3b82f6" },
+                  "custom": {
+                    "barAlignment": 0,
+                    "drawStyle": "bars",
+                    "fillOpacity": 60,
+                    "lineWidth": 0
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-4": {
+        "kind": "Panel",
+        "spec": {
+          "id": 4,
+          "title": "Probe Sensor",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "from(bucket: \"irrigation\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"probe_sensor_ok\")\n  |> last()" }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "",
+            "spec": {
+              "options": {
+                "colorMode": "background",
+                "graphMode": "none",
+                "reduceOptions": { "calcs": ["lastNotNull"] },
+                "textMode": "auto"
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "mappings": [
+                    { "type": "value", "options": { "true":  { "text": "Water OK", "color": "green" } } },
+                    { "type": "value", "options": { "false": { "text": "DRY",      "color": "red"   } } }
+                  ],
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [{ "value": null, "color": "green" }]
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-40": {
+        "kind": "Panel",
+        "spec": {
+          "id": 40,
+          "title": "Recent Events",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "pumpRuns = from(bucket: \"irrigation\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"pump_runtime_s\")\n  |> filter(fn: (r) => r._value > 0)\n\nskipEvents = from(bucket: \"irrigation\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"skip_reason\")\n  |> filter(fn: (r) => r._value != \"not_time\" and r._value != \"none\" and r._value != \"already_watered\")\n\nunion(tables: [pumpRuns, skipEvents])\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 50)\n  |> keep(columns: [\"_time\", \"_field\", \"_value\"])\n  |> rename(columns: {_time: \"Time\", _field: \"Event\", _value: \"Value\"})" }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "",
+            "spec": {
+              "options": {
+                "footer": { "show": false },
+                "sortBy": [{ "desc": true, "displayName": "Time" }]
+              },
+              "fieldConfig": {
+                "defaults": { "custom": { "align": "auto" } },
+                "overrides": [
+                  {
+                    "matcher": { "id": "byName", "options": "Value" },
+                    "properties": [
+                      {
+                        "id": "mappings",
+                        "value": [
+                          { "options": { "empty_butt":      { "color": "orange", "text": "⚠ Water low"       } }, "type": "value" },
+                          { "options": { "low_battery":     { "color": "red",    "text": "🔋 Low battery"    } }, "type": "value" },
+                          { "options": { "rain":            { "color": "blue",   "text": "🌧 Rain forecast"  } }, "type": "value" },
+                          { "options": { "frost":           { "color": "blue",   "text": "❄ Frost warning"  } }, "type": "value" },
+                          { "options": { "no_weather_data": { "color": "orange", "text": "⚠ No weather data" } }, "type": "value" },
+                          { "options": { "time_unknown":    { "color": "orange", "text": "⚠ Time unknown"    } }, "type": "value" }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-5": {
+        "kind": "Panel",
+        "spec": {
+          "id": 5,
+          "title": "WiFi Signal",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "from(bucket: \"irrigation\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"wifi_rssi\")\n  |> last()" }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "",
+            "spec": {
+              "options": {
+                "colorMode": "background",
+                "graphMode": "none",
+                "reduceOptions": { "calcs": ["lastNotNull"] }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "dBm",
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      { "value": null, "color": "red" },
+                      { "value": -80, "color": "orange" },
+                      { "value": -70, "color": "yellow" },
+                      { "value": -60, "color": "green" }
+                    ]
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-50": {
+        "kind": "Panel",
+        "spec": {
+          "id": 50,
+          "title": "Last Seen",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "from(bucket: \"irrigation\")\n  |> range(start: -7d)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"battery_v\")\n  |> last()\n  |> map(fn: (r) => ({r with _value: float(v: uint(v: now()) - uint(v: r._time)) / 1000000000.0}))" }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "",
+            "spec": {
+              "options": {
+                "colorMode": "background",
+                "graphMode": "none",
+                "reduceOptions": { "calcs": ["lastNotNull"] }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "dtdurations",
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      { "value": null,  "color": "green"  },
+                      { "value": 5400,  "color": "orange" },
+                      { "value": 21600, "color": "red"    }
+                    ]
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-6": {
+        "kind": "Panel",
+        "spec": {
+          "id": 6,
+          "title": "Rain Forecast",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": { "name": "${datasource}" },
+                      "spec": { "query": "from(bucket: \"irrigation\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"forecast_rain_pct\")\n  |> last()" }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "",
+            "spec": {
+              "options": {
+                "colorMode": "background",
+                "graphMode": "none",
+                "reduceOptions": { "calcs": ["lastNotNull"] }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "percent",
+                  "min": 0,
+                  "max": 100,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      { "value": null, "color": "green"  },
+                      { "value": 40,   "color": "yellow" },
+                      { "value": 60,   "color": "blue"   }
+                    ]
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "layout": {
+      "kind": "GridLayout",
+      "spec": {
+        "items": [
+          { "kind": "GridLayoutItem", "spec": { "x": 0,  "y": 0,  "width": 4,  "height": 4, "element": { "kind": "ElementReference", "name": "panel-1"  } } },
+          { "kind": "GridLayoutItem", "spec": { "x": 4,  "y": 0,  "width": 4,  "height": 4, "element": { "kind": "ElementReference", "name": "panel-2"  } } },
+          { "kind": "GridLayoutItem", "spec": { "x": 8,  "y": 0,  "width": 4,  "height": 4, "element": { "kind": "ElementReference", "name": "panel-3"  } } },
+          { "kind": "GridLayoutItem", "spec": { "x": 12, "y": 0,  "width": 3,  "height": 4, "element": { "kind": "ElementReference", "name": "panel-6"  } } },
+          { "kind": "GridLayoutItem", "spec": { "x": 15, "y": 0,  "width": 3,  "height": 4, "element": { "kind": "ElementReference", "name": "panel-4"  } } },
+          { "kind": "GridLayoutItem", "spec": { "x": 18, "y": 0,  "width": 3,  "height": 4, "element": { "kind": "ElementReference", "name": "panel-5"  } } },
+          { "kind": "GridLayoutItem", "spec": { "x": 21, "y": 0,  "width": 3,  "height": 4, "element": { "kind": "ElementReference", "name": "panel-50" } } },
+          { "kind": "GridLayoutItem", "spec": { "x": 0,  "y": 4,  "width": 14, "height": 8, "element": { "kind": "ElementReference", "name": "panel-10" } } },
+          { "kind": "GridLayoutItem", "spec": { "x": 14, "y": 4,  "width": 10, "height": 8, "element": { "kind": "ElementReference", "name": "panel-11" } } },
+          { "kind": "GridLayoutItem", "spec": { "x": 0,  "y": 12, "width": 12, "height": 7, "element": { "kind": "ElementReference", "name": "panel-20" } } },
+          { "kind": "GridLayoutItem", "spec": { "x": 12, "y": 12, "width": 12, "height": 7, "element": { "kind": "ElementReference", "name": "panel-21" } } },
+          { "kind": "GridLayoutItem", "spec": { "x": 0,  "y": 19, "width": 8,  "height": 6, "element": { "kind": "ElementReference", "name": "panel-22" } } },
+          { "kind": "GridLayoutItem", "spec": { "x": 8,  "y": 19, "width": 8,  "height": 6, "element": { "kind": "ElementReference", "name": "panel-30" } } },
+          { "kind": "GridLayoutItem", "spec": { "x": 16, "y": 19, "width": 8,  "height": 6, "element": { "kind": "ElementReference", "name": "panel-31" } } },
+          { "kind": "GridLayoutItem", "spec": { "x": 0,  "y": 25, "width": 24, "height": 8, "element": { "kind": "ElementReference", "name": "panel-40" } } },
+          { "kind": "GridLayoutItem", "spec": { "x": 0,  "y": 33, "width": 24, "height": 6, "element": { "kind": "ElementReference", "name": "panel-12" } } }
+        ]
+      }
+    },
+    "links": [],
+    "liveNow": false,
+    "preload": false,
+    "tags": ["irrigation", "pico", "solar"],
+    "timeSettings": {
+      "timezone": "Europe/London",
+      "from": "now-24h",
+      "to": "now",
+      "autoRefresh": "5m",
+      "autoRefreshIntervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"],
+      "hideTimepicker": false,
+      "fiscalYearStartMonth": 0
+    },
+    "title": "Smart Solar Irrigation",
+    "variables": [
+      {
+        "kind": "DatasourceVariable",
+        "spec": {
+          "name": "datasource",
+          "pluginId": "influxdb",
+          "refresh": "onDashboardLoad",
+          "regex": "",
+          "current": { "text": "", "value": "" },
+          "options": [],
+          "multi": false,
+          "includeAll": false,
+          "hide": "dontHide",
+          "skipUrlSync": false,
+          "allowCustomValue": true
+        }
+      }
+    ]
+  }
+}
