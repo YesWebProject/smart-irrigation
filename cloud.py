@@ -30,7 +30,7 @@ from config import (
 # ---------------------------------------------------------------------------
 # Time sync
 # ---------------------------------------------------------------------------
-def sync_time(retries=3, delay_s=2):
+def sync_time(retries=3, delay_s=0.5):
     """
     Sync the Pico's internal clock from NTP.
     Call this once after WiFi connects, before anything that needs timestamps.
@@ -203,7 +203,7 @@ def fetch_weather():
     Returns None on failure — decisions.py will skip watering if None.
     """
     try:
-        r    = urequests.get(OPENMETEO_URL, timeout=10)
+        r    = urequests.get(OPENMETEO_URL, timeout=5)
         data = json.loads(r.text)
         r.close()
 

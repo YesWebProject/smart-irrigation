@@ -47,7 +47,7 @@ fetches weather data, and decides whether to water. All cloud services are fully
 - Protected files (NEVER overwritten by OTA): `config.py`, `secrets.py`, `state.bin`, `_ota_version`
 - `config.py` changes always need manual Thonny upload — plan accordingly
 
-**Current manifest version: 12**
+**Current manifest version: 13**
 
 ## Battery power tiers
 | Voltage | Tier | Sleep | Commands |

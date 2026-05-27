@@ -329,18 +329,29 @@ pump_runtime_s     = 0
 pump_stopped_early = False
 pump_health_warning = False
 
+# _safety_state[0] = tick counter (reset before each pump run)
+# _safety_state[1] = last known water level pct (seeded from Stage 7 reading)
+# The water-level sensor read (3-sample median filter, ~1.7 s) is expensive —
+# rate-limited to once every 6 ticks (~30 s). The probe sensor (GPIO, <1 ms)
+# still runs every tick so dry-run is caught promptly.
+_safety_state = [0, None]
+
 def _pump_safety_ok():
     """
     Called every PUMP_CHECK_INTERVAL_S seconds during pumping.
     Returns False to stop the pump if either safety sensor detects dry conditions.
     Also feeds the watchdog so a long pump run doesn't trigger a reset.
     """
+    _safety_state[0] += 1
     watchdog.feed()
     probe = hardware.read_probe_sensor()
     if probe is False:
         print("SAFETY: probe sensor dry — stopping pump")
         return False
-    level = hardware.read_water_level_pct()
+    # Full median-filter sensor read every 6 ticks (~30 s); use cached level otherwise.
+    if _safety_state[0] % 6 == 0:
+        _safety_state[1] = hardware.read_water_level_pct()
+    level = _safety_state[1]
     if level is not None and level <= WATER_PUMP_CUTOFF_PCT:
         print(f"SAFETY: water level {level:.1f}% — stopping pump")
         return False
@@ -358,6 +369,8 @@ if water_now and power.commands_accepted(tier):
     else:
         run_for = duration_s if duration_s > 0 else 600
         print(f"Running pump: water_now command for {run_for}s")
+        _safety_state[0] = 0
+        _safety_state[1] = water_pct
         water_mm_before     = hardware.read_water_level_mm()
         pump_runtime_s      = hardware.run_pump(run_for, safety_check=_pump_safety_ok)
         pump_stopped_early  = pump_runtime_s < run_for
@@ -383,6 +396,8 @@ if water_now and power.commands_accepted(tier):
 
 elif should_water:
     print(f"Running pump: scheduled watering for {duration_s}s")
+    _safety_state[0] = 0
+    _safety_state[1] = water_pct
     water_mm_before     = hardware.read_water_level_mm()
     pump_runtime_s      = hardware.run_pump(duration_s, safety_check=_pump_safety_ok)
     pump_stopped_early  = pump_runtime_s < duration_s
