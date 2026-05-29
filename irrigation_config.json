@@ -21,9 +21,8 @@
   "water_level": {
     "sensor_distance_empty_mm": 800,
     "sensor_distance_full_mm": 100,
-    "sensor_distance_pump_mm": 0,
-    "low_level_alert_pct": 15,
-    "pump_cutoff_pct": 5
+    "sensor_distance_pump_mm": 600,
+    "low_level_alert_pct": 15
   },
   "battery": {
     "tier1_v": 3.9,

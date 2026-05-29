@@ -279,7 +279,7 @@ weather = cloud.fetch_weather()
 watchdog.feed()
 
 
-# ── Stage 10: New day detection + OTA check ─────────────────────────────────
+# ── Stage 10: New day detection ─────────────────────────────────────────────
 
 if weather is not None and time_valid:
     new_sunrise = weather.get("sunrise_unix")
@@ -289,12 +289,12 @@ if weather is not None and time_valid:
         power.set_watered_today(False)
         power.save_sunrise_unix(new_sunrise)
 
-        # OTA check — runs once per day when a new sunrise is detected.
-        # If an update is available it downloads, applies, and reboots here.
-        # If no update or OTA is disabled, execution continues normally.
-        watchdog.feed()
-        ota.check_and_apply(send_alert=cloud.send_ntfy_alert)
-        watchdog.feed()
+# OTA check — runs every wake cycle so updates land within one sleep interval.
+# Fetches manifest.json, compares version, and exits immediately if up to date.
+# If an update is available it downloads, applies, and reboots — does not return.
+watchdog.feed()
+ota.check_and_apply(send_alert=cloud.send_ntfy_alert)
+watchdog.feed()
 
 
 # ── Stage 11: Frost alert (from Open-Meteo forecast) ────────────────────────

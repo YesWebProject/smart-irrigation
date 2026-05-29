@@ -1,6 +1,6 @@
 {
-  "version": 15,
-  "notes": "Pump-intake safety calibration: SENSOR_DISTANCE_PUMP_MM (Gist water_level.sensor_distance_pump_mm) sets the dry-run cutoff as a measured sensor distance instead of a percentage; takes precedence over WATER_PUMP_CUTOFF_PCT when >0. Pump safety checks now read the cutoff at runtime (fixes Gist override not reaching main.py). Grafana shows a 'Pump cutoff (safety)' reference line.",
+  "version": 16,
+  "notes": "OTA check moved to run every wake cycle (was once per day on new sunrise); updates now land within one sleep interval. Also removed pump_cutoff_pct from Gist reference (SENSOR_DISTANCE_PUMP_MM is the preferred calibration).",
   "base_url": "https://raw.githubusercontent.com/YesWebProject/smart-irrigation/main/",
   "files": [
     "main.py",

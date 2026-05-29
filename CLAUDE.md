@@ -42,13 +42,13 @@ fetches weather data, and decides whether to water. All cloud services are fully
 | `.gitignore` | PC + GitHub | Excludes secrets.py and junk |
 
 ## OTA update system
-- Pico checks `manifest.json` on GitHub once per day (on new sunrise detection)
+- Pico checks `manifest.json` on GitHub every wake cycle (picks up updates within one sleep interval)
 - Version tracked in `_ota_version` file on Pico flash (NOT config.py — that's protected)
 - To push an update: edit files, bump `"version"` in manifest.json, git push
 - Protected files (NEVER overwritten by OTA): `config.py`, `secrets.py`, `state.bin`, `_ota_version`
 - `config.py` changes always need manual Thonny upload — plan accordingly
 
-**Current manifest version: 15**
+**Current manifest version: 16**
 
 ## Battery power tiers
 | Voltage | Tier | Sleep | Commands |
