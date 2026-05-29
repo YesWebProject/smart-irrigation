@@ -1569,6 +1569,24 @@
                     "refId": "C",
                     "hidden": false
                   }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "influxdb",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "${datasource}"
+                      },
+                      "spec": {
+                        "query": "from(bucket: \"irrigation\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"sensor_distance_pump_mm\")\n  |> last()"
+                      }
+                    },
+                    "refId": "D",
+                    "hidden": false
+                  }
                 }
               ],
               "transformations": [],
@@ -1710,6 +1728,47 @@
                         "id": "color",
                         "value": {
                           "fixedColor": "orange",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "dash": [
+                            8,
+                            4
+                          ],
+                          "fill": "dash"
+                        }
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 0
+                      },
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 2
+                      },
+                      {
+                        "id": "custom.pointSize",
+                        "value": 8
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "sensor_distance_pump_mm"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Pump cutoff (safety)"
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "red",
                           "mode": "fixed"
                         }
                       },

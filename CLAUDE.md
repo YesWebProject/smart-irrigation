@@ -48,7 +48,7 @@ fetches weather data, and decides whether to water. All cloud services are fully
 - Protected files (NEVER overwritten by OTA): `config.py`, `secrets.py`, `state.bin`, `_ota_version`
 - `config.py` changes always need manual Thonny upload — plan accordingly
 
-**Current manifest version: 14**
+**Current manifest version: 15**
 
 ## Battery power tiers
 | Voltage | Tier | Sleep | Commands |
@@ -77,7 +77,7 @@ fetches weather data, and decides whether to water. All cloud services are fully
 
 ## Watering logic
 - Triggers once per day, 30 minutes before sunrise (configurable via Gist)
-- Skips if: already watered today, rain skip (≥60% probability AND ≥5mm predicted), frost forecast, probe dry (unless probe disabled via Gist), water level < 5%, battery Tier 3+
+- Skips if: already watered today, rain skip (≥60% probability AND ≥5mm predicted), frost forecast, probe dry (unless probe disabled via Gist), water level at/below the pump cutoff (set by `sensor_distance_pump_mm`, else `pump_cutoff_pct` default 5%), battery Tier 3+
 - Offline backup: if WiFi fails, uses stored sunrise + RTC time to water at base duration
 - All thresholds overridable via GitHub Gist without code changes — and as of v14 the
   overrides are actually applied at runtime (every module reads Gist-overridable constants via
@@ -92,6 +92,8 @@ Key fields: `watering.base_duration_s`, `watering.sunrise_offset_min`,
 `watering.rain_probability_threshold_pct`, `watering.rain_amount_threshold_mm`,
 `watering.pump_min_runtime_for_check_s`, `watering.pump_min_drop_mm`,
 `water_level.sensor_distance_empty_mm`, `water_level.sensor_distance_full_mm`,
+`water_level.sensor_distance_pump_mm` (measured sensor distance at the pump intake — sets the
+dry-run safety cutoff directly; takes precedence over `pump_cutoff_pct` when >0, 0 = use the %),
 `battery.emergency_cutoff_v`, `sleep.tier1_interval_min`,
 `sensors.probe_sensor_enabled` (set false to disable the probe dry check — useful when
 low-conductivity rainwater causes false DRY readings)

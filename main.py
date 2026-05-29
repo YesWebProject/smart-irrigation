@@ -30,7 +30,9 @@ import hardware
 import decisions
 import config
 
-from config import WATER_PUMP_CUTOFF_PCT, POST_WATER_CYCLES, POST_WATER_SLEEP_S
+from config import POST_WATER_CYCLES, POST_WATER_SLEEP_S
+# The pump dry-run cutoff is read at call time via decisions.pump_cutoff_pct()
+# (not imported here) so Gist overrides of the cutoff / pump-level distance apply.
 
 print("\n" + "=" * 42)
 print("  Smart Irrigation — Wake cycle start")
@@ -160,7 +162,7 @@ except RuntimeError as e:
                 and not power.get_watered_today()
                 and tier < 3
                 and (probe is not False)
-                and (w_pct is None or w_pct > WATER_PUMP_CUTOFF_PCT)):
+                and (w_pct is None or w_pct > decisions.pump_cutoff_pct())):
 
             from config import WATERING_BASE_DURATION_S, WATERING_SUNRISE_OFFSET_M, WATERING_WINDOW_M
             import time as _t
@@ -355,13 +357,13 @@ def _pump_safety_ok():
     if _safety_state[0] % 6 == 0:
         _safety_state[1] = hardware.read_water_level_pct()
     level = _safety_state[1]
-    if level is not None and level <= WATER_PUMP_CUTOFF_PCT:
+    if level is not None and level <= decisions.pump_cutoff_pct():
         print(f"SAFETY: water level {level:.1f}% — stopping pump")
         return False
     return True
 
 if water_now and power.commands_accepted(tier):
-    if water_pct is not None and water_pct <= WATER_PUMP_CUTOFF_PCT:
+    if water_pct is not None and water_pct <= decisions.pump_cutoff_pct():
         msg = f"water_now ignored — water level too low ({water_pct:.1f}%)"
         cloud.send_ntfy_alert(msg)
         print(msg)
@@ -449,6 +451,11 @@ log_data = {
     "sensor_distance_full_mm":  config.SENSOR_DISTANCE_FULL_MM,
     "sensor_distance_empty_mm": config.SENSOR_DISTANCE_EMPTY_MM,
 }
+
+# Pump-intake safety distance — only log when set (>0) so the Grafana reference
+# line is absent rather than pinned at 0 when the percentage cutoff is in use.
+if getattr(config, "SENSOR_DISTANCE_PUMP_MM", 0):
+    log_data["sensor_distance_pump_mm"] = config.SENSOR_DISTANCE_PUMP_MM
 
 # Log Open-Meteo forecast values so they appear on Grafana graphs
 if weather is not None:

@@ -51,6 +51,32 @@ def get_watering_duration(temp_c):
 
 
 # ---------------------------------------------------------------------------
+# Pump dry-run cutoff
+# ---------------------------------------------------------------------------
+def pump_cutoff_pct():
+    """
+    Effective dry-run safety cutoff as a water-level percentage.
+
+    If SENSOR_DISTANCE_PUMP_MM is set (> 0) it is the sensor-to-water distance
+    at the pump intake — the safety limit, measured directly. Convert it to a
+    percentage using the same empty/full calibration the live reading uses.
+    Comparing live_pct <= cutoff_pct is then algebraically identical to
+    comparing raw_distance >= pump_level_mm (the empty/full span cancels), so
+    the existing percentage-based safety checks work unchanged.
+
+    Falls back to WATER_PUMP_CUTOFF_PCT when the pump distance is unset (0).
+    """
+    pump_mm = getattr(_cfg, "SENSOR_DISTANCE_PUMP_MM", 0)
+    if pump_mm and pump_mm > 0:
+        empty_mm = getattr(_cfg, "SENSOR_DISTANCE_EMPTY_MM", 800)
+        full_mm  = getattr(_cfg, "SENSOR_DISTANCE_FULL_MM", 100)
+        if empty_mm != full_mm:
+            pct = (empty_mm - pump_mm) / (empty_mm - full_mm) * 100.0
+            return max(0.0, min(100.0, pct))
+    return getattr(_cfg, "WATER_PUMP_CUTOFF_PCT", 5)
+
+
+# ---------------------------------------------------------------------------
 # Watering window check
 # ---------------------------------------------------------------------------
 def _is_watering_time(sunrise_unix):
@@ -137,7 +163,7 @@ def check_watering(weather, sensors, battery_v, tier):
     """
 
     # Gist-overridable thresholds — read at call time so Gist overrides apply.
-    pump_cutoff           = getattr(_cfg, "WATER_PUMP_CUTOFF_PCT", 5)
+    pump_cutoff           = pump_cutoff_pct()
     probe_enabled         = getattr(_cfg, "PROBE_SENSOR_ENABLED", True)
     frost_threshold       = getattr(_cfg, "FROST_THRESHOLD_C", 2.0)
     rain_pct_threshold    = getattr(_cfg, "RAIN_SKIP_THRESHOLD_PCT", 60)

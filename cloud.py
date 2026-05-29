@@ -330,6 +330,7 @@ def apply_remote_config(remote_cfg):
     wl = remote_cfg.get("water_level", {})
     _set("SENSOR_DISTANCE_EMPTY_MM", wl.get("sensor_distance_empty_mm"))
     _set("SENSOR_DISTANCE_FULL_MM",  wl.get("sensor_distance_full_mm"))
+    _set("SENSOR_DISTANCE_PUMP_MM",  wl.get("sensor_distance_pump_mm"))
     _set("WATER_LOW_ALERT_PCT",      wl.get("low_level_alert_pct"))
     _set("WATER_PUMP_CUTOFF_PCT",    wl.get("pump_cutoff_pct"))
 
