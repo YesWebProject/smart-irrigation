@@ -19,11 +19,15 @@ from machine import Pin, UART
 import time
 import watchdog
 
+# Hardware constants (pins, baud, timeouts) are fixed and bound at import time.
 from config import (
-    UART_BAUD, UART_RX_PIN, UART_TIMEOUT_MS, SENSOR_BLIND_MM,
-    SENSOR_DISTANCE_EMPTY_MM, SENSOR_DISTANCE_FULL_MM,
+    UART_BAUD, UART_RX_PIN, UART_TIMEOUT_MS,
     PUMP_PIN, PUMP_CHECK_INTERVAL_S, PROBE_PIN,
 )
+
+# Sensor calibration values are Gist-overridable, so they are read at call time
+# via getattr(_cfg, ...) inside the WaterLevel methods rather than bound here.
+import config as _cfg
 
 # Maximum pump run time — hard cap applied here in hardware, regardless of
 # what decisions.py or a manual command requests
@@ -69,7 +73,8 @@ class WaterLevel:
                     expected = (buf[0] + buf[1] + buf[2]) & 0xFF
                     if expected == buf[3]:
                         distance = buf[1] * 256 + buf[2]
-                        return None if distance < SENSOR_BLIND_MM else distance
+                        blind_mm = getattr(_cfg, "SENSOR_BLIND_MM", 30)
+                        return None if distance < blind_mm else distance
                     buf = bytearray()   # bad checksum — try again
 
         return None   # timed out
@@ -100,6 +105,9 @@ class WaterLevel:
             SENSOR_DISTANCE_FULL_MM  = distance when butt is full  (small number, e.g. 100mm)
             SENSOR_DISTANCE_EMPTY_MM = distance when butt is empty (large number, e.g. 800mm)
         """
+        empty_mm = getattr(_cfg, "SENSOR_DISTANCE_EMPTY_MM", 800)
+        full_mm  = getattr(_cfg, "SENSOR_DISTANCE_FULL_MM", 100)
+
         distance      = self._read_median_mm()
         self._last_mm = distance   # cache raw reading -- None if sensor failed
 
@@ -109,13 +117,13 @@ class WaterLevel:
 
         # Reject readings closer than full-mark minus 20mm — physically impossible,
         # likely condensation on the sensor face causing a spuriously short echo
-        if distance < SENSOR_DISTANCE_FULL_MM - 20:
+        if distance < full_mm - 20:
             print(f"Water level: {distance}mm rejected (closer than full mark minus 20mm)")
             self._last_mm = None
             return None
 
-        pct = ((SENSOR_DISTANCE_EMPTY_MM - distance) /
-               (SENSOR_DISTANCE_EMPTY_MM - SENSOR_DISTANCE_FULL_MM) * 100.0)
+        pct = ((empty_mm - distance) /
+               (empty_mm - full_mm) * 100.0)
         pct = max(0.0, min(100.0, pct))
         print(f"Water level: {distance}mm -> {pct:.1f}%")
         return round(pct, 1)

@@ -23,14 +23,16 @@ import machine
 from machine import ADC, Pin
 import ustruct
 
+# Hardware constants are fixed and safe to bind at import time.
 from config import (
     ADC_PIN, VDIV_RATIO, ADC_REF_V, ADC_RESOLUTION,
-    BATTERY_TIER1_V, BATTERY_TIER2_V, BATTERY_TIER3_V,
-    SLEEP_TIER1_S, SLEEP_TIER2_S, SLEEP_TIER3_S, SLEEP_TIER4_S,
 )
 
-# BATTERY_EMERGENCY_CUTOFF_V is read at call time inside go_to_sleep()
-# so it picks up any value set by the Gist remote config during this wake cycle.
+# Gist-overridable constants (battery tiers, sleep intervals, emergency cutoff)
+# are read at call time via getattr(_cfg, ...) so they pick up any value applied
+# by cloud.apply_remote_config() during this wake cycle. A plain
+# `from config import X` would bind the import-time value and ignore the Gist.
+import config as _cfg
 
 # ---------------------------------------------------------------------------
 # Persistent state — filesystem helpers
@@ -161,19 +163,22 @@ def get_tier(voltage):
       Tier 3  > 3.3V  low     (~10%+) — 4 hr sleep,  commands ignored
       Tier 4  ≤ 3.3V  critical         — 24 hr sleep, commands ignored
     """
-    if voltage > BATTERY_TIER1_V: return 1
-    if voltage > BATTERY_TIER2_V: return 2
-    if voltage > BATTERY_TIER3_V: return 3
+    tier1_v = getattr(_cfg, "BATTERY_TIER1_V", 3.9)
+    tier2_v = getattr(_cfg, "BATTERY_TIER2_V", 3.6)
+    tier3_v = getattr(_cfg, "BATTERY_TIER3_V", 3.3)
+    if voltage > tier1_v: return 1
+    if voltage > tier2_v: return 2
+    if voltage > tier3_v: return 3
     return 4
 
 
 def get_sleep_seconds(tier):
     """Return sleep duration in seconds for a given tier."""
     return {
-        1: SLEEP_TIER1_S,
-        2: SLEEP_TIER2_S,
-        3: SLEEP_TIER3_S,
-        4: SLEEP_TIER4_S,
+        1: getattr(_cfg, "SLEEP_TIER1_S", 30 * 60),
+        2: getattr(_cfg, "SLEEP_TIER2_S", 60 * 60),
+        3: getattr(_cfg, "SLEEP_TIER3_S", 4 * 60 * 60),
+        4: getattr(_cfg, "SLEEP_TIER4_S", 24 * 60 * 60),
     }[tier]
 
 
@@ -228,7 +233,6 @@ def go_to_sleep(tier, voltage=None):
 
     # Read emergency cutoff from config at call time so it reflects any
     # value applied by the Gist remote config during this wake cycle.
-    import config as _cfg
     emergency_v = getattr(_cfg, "BATTERY_EMERGENCY_CUTOFF_V", 3.0)
 
     if voltage is not None and voltage < emergency_v:

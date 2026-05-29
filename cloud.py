@@ -20,11 +20,15 @@ import ntptime
 
 import secrets
 from config import (
-    OPENMETEO_URL,
     INFLUX_TIMEOUT_S,
     NTFY_TIMEOUT_S,
     CONFIG_TIMEOUT_S,
 )
+
+# Latitude/longitude are read at call time in fetch_weather() via _cfg so the
+# Open-Meteo URL is built fresh each cycle and rain_sum can be requested without
+# a config.py change.
+import config as _cfg
 
 
 # ---------------------------------------------------------------------------
@@ -195,15 +199,26 @@ def fetch_weather():
 
     Returns a dict:
         {
-            "rain_pct":     60,          # max rain probability today (%)
-            "sunrise_unix": 1716000000,  # sunrise as unix timestamp
-            "temp_max":     18.4,        # max temperature today (°C)
+            "rain_pct":         60,          # max rain probability today (%)
+            "forecast_rain_mm": 4.2,         # total predicted rainfall today (mm)
+            "sunrise_unix":     1716000000,  # sunrise as unix timestamp
+            "temp_max":         18.4,        # max temperature today (°C)
         }
 
     Returns None on failure — decisions.py will skip watering if None.
     """
     try:
-        r    = urequests.get(OPENMETEO_URL, timeout=5)
+        # Build the URL here (rather than from config.OPENMETEO_URL) so rain_sum
+        # is always requested and lat/lon pick up any Gist override — no config.py change needed.
+        url = (
+            "https://api.open-meteo.com/v1/forecast"
+            f"?latitude={getattr(_cfg, 'LATITUDE', 50.569903)}"
+            f"&longitude={getattr(_cfg, 'LONGITUDE', -3.651687)}"
+            f"&daily=sunrise,precipitation_probability_max,temperature_2m_max,temperature_2m_min,rain_sum"
+            f"&timezone=UTC"
+            f"&forecast_days=1"
+        )
+        r    = urequests.get(url, timeout=5)
         data = json.loads(r.text)
         r.close()
 
@@ -213,6 +228,10 @@ def fetch_weather():
         temp_min   = daily["temperature_2m_min"][0]
         sunrise_str = daily["sunrise"][0]   # e.g. "2024-05-15T05:23"
 
+        # Total predicted rainfall (mm) — default to 0.0 if missing or null
+        rain_sum = daily.get("rain_sum", [None])
+        forecast_rain_mm = rain_sum[0] if rain_sum and rain_sum[0] is not None else 0.0
+
         # Parse sunrise string to unix timestamp
         # MicroPython time.mktime takes (year, month, day, hour, min, sec, weekday, yearday)
         date_part, time_part = sunrise_str.split("T")
@@ -220,12 +239,14 @@ def fetch_weather():
         hour, minute         = [int(x) for x in time_part.split(":")]
         sunrise_unix = time.mktime((year, month, day, hour, minute, 0, 0, 0))
 
-        print(f"Weather: rain={rain_pct}%  sunrise={sunrise_str}  max={temp_max}°C  min={temp_min}°C")
+        print(f"Weather: rain={rain_pct}% / {forecast_rain_mm}mm  sunrise={sunrise_str}  "
+              f"max={temp_max}°C  min={temp_min}°C")
         return {
-            "rain_pct":     rain_pct,
-            "sunrise_unix": sunrise_unix,
-            "temp_max":     temp_max,
-            "temp_min":     temp_min,
+            "rain_pct":         rain_pct,
+            "forecast_rain_mm": forecast_rain_mm,
+            "sunrise_unix":     sunrise_unix,
+            "temp_max":         temp_max,
+            "temp_min":         temp_min,
         }
 
     except Exception as e:
@@ -285,6 +306,7 @@ def apply_remote_config(remote_cfg):
     _set("WATERING_SUNRISE_OFFSET_M",      w.get("sunrise_offset_min"))
     _set("WATERING_WINDOW_M",              w.get("watering_window_min"))
     _set("RAIN_SKIP_THRESHOLD_PCT",        w.get("rain_probability_threshold_pct"))
+    _set("RAIN_SKIP_AMOUNT_MM",            w.get("rain_amount_threshold_mm", 5.0))
     _set("PUMP_MIN_RUNTIME_FOR_CHECK_S",   w.get("pump_min_runtime_for_check_s"))
     _set("PUMP_MIN_DROP_MM",               w.get("pump_min_drop_mm"))
 
@@ -323,6 +345,11 @@ def apply_remote_config(remote_cfg):
     # Alert thresholds
     al = remote_cfg.get("alerts", {})
     _set("FROST_THRESHOLD_C", al.get("frost_threshold_c"))
+
+    # Sensors — probe override. Default True so a Gist without a sensors section
+    # (or an unreachable Gist) keeps the probe dry-run protection enabled.
+    s = remote_cfg.get("sensors", {})
+    _set("PROBE_SENSOR_ENABLED", s.get("probe_sensor_enabled", True))
 
     # Sleep intervals (Gist stores minutes, config stores seconds)
     sl = remote_cfg.get("sleep", {})

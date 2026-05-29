@@ -344,10 +344,13 @@ def _pump_safety_ok():
     """
     _safety_state[0] += 1
     watchdog.feed()
-    probe = hardware.read_probe_sensor()
-    if probe is False:
-        print("SAFETY: probe sensor dry — stopping pump")
-        return False
+    # Probe is skipped when disabled via Gist (false DRY readings in low-conductivity
+    # rainwater) — the ultrasonic level cutoff below remains the dry-run guard.
+    if getattr(config, "PROBE_SENSOR_ENABLED", True):
+        probe = hardware.read_probe_sensor()
+        if probe is False:
+            print("SAFETY: probe sensor dry — stopping pump")
+            return False
     # Full median-filter sensor read every 6 ticks (~30 s); use cached level otherwise.
     if _safety_state[0] % 6 == 0:
         _safety_state[1] = hardware.read_water_level_pct()
@@ -362,7 +365,7 @@ if water_now and power.commands_accepted(tier):
         msg = f"water_now ignored — water level too low ({water_pct:.1f}%)"
         cloud.send_ntfy_alert(msg)
         print(msg)
-    elif probe_ok is False:
+    elif probe_ok is False and getattr(config, "PROBE_SENSOR_ENABLED", True):
         msg = "water_now ignored — probe sensor reads dry"
         cloud.send_ntfy_alert(msg)
         print(msg)
@@ -440,6 +443,7 @@ log_data = {
     "pump_health_warning":     pump_health_warning,
     "skip_reason":             "none" if (should_water or water_now) else skip_reason,
     "probe_sensor_ok":         probe_ok if probe_ok is not None else True,
+    "probe_sensor_enabled":    getattr(config, "PROBE_SENSOR_ENABLED", True),
     "time_synced":             time_synced,
     # Calibration reference values (post-Gist override) — used for Grafana reference lines
     "sensor_distance_full_mm":  config.SENSOR_DISTANCE_FULL_MM,
@@ -454,6 +458,7 @@ if weather is not None:
         log_data["forecast_temp_min_c"] = weather["temp_min"]
     if weather.get("rain_pct") is not None:
         log_data["forecast_rain_pct"] = weather["rain_pct"]
+    log_data["forecast_rain_mm"] = weather.get("forecast_rain_mm", 0.0)
 
 if water_pct is not None:
     log_data["water_level_pct"] = water_pct

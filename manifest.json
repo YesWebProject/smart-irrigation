@@ -1,6 +1,6 @@
 {
-  "version": 13,
-  "notes": "Battery optimisation: NTP retry delay 2s→0.5s; weather timeout 10s→5s; pump safety check rate-limits water-level sensor to every 30s",
+  "version": 14,
+  "notes": "Gist overrides now applied at runtime (getattr reads, not import-time binds) so sleep/battery/watering/calibration overrides take effect; rain skip requires both probability AND predicted mm (forecast_rain_mm); Gist-controllable probe sensor override (PROBE_SENSOR_ENABLED)",
   "base_url": "https://raw.githubusercontent.com/YesWebProject/smart-irrigation/main/",
   "files": [
     "main.py",

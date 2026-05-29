@@ -35,6 +35,7 @@ fetches weather data, and decides whether to water. All cloud services are fully
 | `ota.py` | Pico + GitHub | OTA update system |
 | `boot.py` | Pico + GitHub | Minimal — no WebREPL (removed) |
 | `manifest.json` | GitHub only | OTA version manifest |
+| `irrigation_config.json` | GitHub + Gist | Reference copy of the live Gist runtime config — NOT fetched by the Pico (the Pico reads the Gist URL); update the live gist.github.com copy by hand |
 | `config.py` | Pico + PC only | Settings and calibration — NEVER in GitHub, NEVER OTA'd |
 | `secrets.py` | Pico + PC only | Credentials — NEVER in GitHub, NEVER OTA'd |
 | `CLAUDE.md` | PC only | This file |
@@ -47,7 +48,7 @@ fetches weather data, and decides whether to water. All cloud services are fully
 - Protected files (NEVER overwritten by OTA): `config.py`, `secrets.py`, `state.bin`, `_ota_version`
 - `config.py` changes always need manual Thonny upload — plan accordingly
 
-**Current manifest version: 13**
+**Current manifest version: 14**
 
 ## Battery power tiers
 | Voltage | Tier | Sleep | Commands |
@@ -76,17 +77,24 @@ fetches weather data, and decides whether to water. All cloud services are fully
 
 ## Watering logic
 - Triggers once per day, 30 minutes before sunrise (configurable via Gist)
-- Skips if: already watered today, rain > 60%, frost forecast, probe dry, water level < 5%, battery Tier 3+
+- Skips if: already watered today, rain skip (≥60% probability AND ≥5mm predicted), frost forecast, probe dry (unless probe disabled via Gist), water level < 5%, battery Tier 3+
 - Offline backup: if WiFi fails, uses stored sunrise + RTC time to water at base duration
-- All thresholds overridable via GitHub Gist without code changes
+- All thresholds overridable via GitHub Gist without code changes — and as of v14 the
+  overrides are actually applied at runtime (every module reads Gist-overridable constants via
+  `getattr(_cfg, ...)` at call time, not `from config import X` at module load)
 
 ## Gist remote config
 Edit `irrigation_config.json` on gist.github.com to change settings without code changes.
 Pico fetches it every wake cycle. Changes take effect within 30 minutes.
+A reference copy of the JSON lives in the repo as `irrigation_config.json` — keep it in sync by
+hand; the Pico reads the live gist, not the repo file.
 Key fields: `watering.base_duration_s`, `watering.sunrise_offset_min`,
+`watering.rain_probability_threshold_pct`, `watering.rain_amount_threshold_mm`,
 `watering.pump_min_runtime_for_check_s`, `watering.pump_min_drop_mm`,
 `water_level.sensor_distance_empty_mm`, `water_level.sensor_distance_full_mm`,
-`battery.emergency_cutoff_v`, `sleep.tier1_interval_min`
+`battery.emergency_cutoff_v`, `sleep.tier1_interval_min`,
+`sensors.probe_sensor_enabled` (set false to disable the probe dry check — useful when
+low-conductivity rainwater causes false DRY readings)
 
 ## Known hardware notes
 - Battery voltage reads ~0.3V high when USB is connected (AnseTo charging)

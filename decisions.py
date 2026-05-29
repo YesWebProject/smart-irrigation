@@ -12,15 +12,11 @@
 import time
 import power
 
-from config import (
-    WATERING_BASE_DURATION_S,
-    WATERING_SUNRISE_OFFSET_M,
-    WATERING_WINDOW_M,
-    RAIN_SKIP_THRESHOLD_PCT,
-    TEMP_SCALING,
-    WATER_PUMP_CUTOFF_PCT,
-    FROST_THRESHOLD_C,
-)
+# Watering constants are all Gist-overridable, so they are read at call time
+# via getattr(_cfg, ...) inside each function. A plain `from config import X`
+# would bind the import-time value and ignore overrides applied later this
+# wake cycle by cloud.apply_remote_config().
+import config as _cfg
 
 # Maximum pump runtime — hard cap regardless of temperature multiplier
 MAX_DURATION_S = 900
@@ -35,7 +31,8 @@ def get_temp_multiplier(temp_c):
     Uses the TEMP_SCALING table from config.py.
     Example: 18°C → 0.8, meaning 80% of base duration.
     """
-    for max_temp, multiplier in TEMP_SCALING:
+    temp_scaling = getattr(_cfg, "TEMP_SCALING", [(5, 0.0), (12, 0.5), (18, 0.8), (24, 1.0), (999, 1.3)])
+    for max_temp, multiplier in temp_scaling:
         if temp_c <= max_temp:
             return multiplier
     return 1.0  # fallback — should never be reached with (999, x) in table
@@ -47,8 +44,9 @@ def get_watering_duration(temp_c):
     Formula: base_duration × temp_multiplier, capped at MAX_DURATION_S.
     Returns 0 if temperature multiplier is 0 (frost protection).
     """
+    base_duration = getattr(_cfg, "WATERING_BASE_DURATION_S", 600)
     multiplier = get_temp_multiplier(temp_c)
-    duration   = int(WATERING_BASE_DURATION_S * multiplier)
+    duration   = int(base_duration * multiplier)
     return min(duration, MAX_DURATION_S)
 
 
@@ -67,14 +65,17 @@ def _is_watering_time(sunrise_unix):
 
     Returns True if inside window, False otherwise.
     """
+    sunrise_offset_m = getattr(_cfg, "WATERING_SUNRISE_OFFSET_M", -30)
+    window_m         = getattr(_cfg, "WATERING_WINDOW_M", 10)
+
     now          = time.localtime()
     current_secs = now[3] * 3600 + now[4] * 60 + now[5]
 
     sr           = time.localtime(sunrise_unix)
     sunrise_secs = sr[3] * 3600 + sr[4] * 60 + sr[5]
 
-    target_secs  = sunrise_secs + (WATERING_SUNRISE_OFFSET_M * 60)
-    window_secs  = WATERING_WINDOW_M * 60
+    target_secs  = sunrise_secs + (sunrise_offset_m * 60)
+    window_secs  = window_m * 60
 
     in_window = (target_secs - window_secs) <= current_secs <= (target_secs + window_secs)
 
@@ -83,7 +84,7 @@ def _is_watering_time(sunrise_unix):
     print(
         f"Time check: now={now[3]:02d}:{now[4]:02d} UTC  "
         f"target={target_h:02d}:{target_m:02d} UTC  "
-        f"window=±{WATERING_WINDOW_M}min  "
+        f"window=±{window_m}min  "
         f"in_window={in_window}"
     )
     return in_window
@@ -101,8 +102,9 @@ def check_frost_alert(weather, send_alert):
     """
     if weather is None:
         return False
+    frost_threshold = getattr(_cfg, "FROST_THRESHOLD_C", 2.0)
     temp_min = weather.get("temp_min")
-    if temp_min is not None and temp_min <= FROST_THRESHOLD_C:
+    if temp_min is not None and temp_min <= frost_threshold:
         send_alert(f"Frost warning: forecast min {temp_min}°C — watering skipped.")
         return True
     return False
@@ -134,6 +136,13 @@ def check_watering(weather, sensors, battery_v, tier):
         - Reads watered-today flag from RTC memory
     """
 
+    # Gist-overridable thresholds — read at call time so Gist overrides apply.
+    pump_cutoff           = getattr(_cfg, "WATER_PUMP_CUTOFF_PCT", 5)
+    probe_enabled         = getattr(_cfg, "PROBE_SENSOR_ENABLED", True)
+    frost_threshold       = getattr(_cfg, "FROST_THRESHOLD_C", 2.0)
+    rain_pct_threshold    = getattr(_cfg, "RAIN_SKIP_THRESHOLD_PCT", 60)
+    rain_amount_threshold = getattr(_cfg, "RAIN_SKIP_AMOUNT_MM", 5.0)
+
     # --- Condition 1: Already watered today? ---
     if power.get_watered_today():
         print("Decision: skip — already watered today.")
@@ -148,17 +157,23 @@ def check_watering(weather, sensors, battery_v, tier):
     # If the ultrasonic sensor gave no reading (None), skip this check and rely
     # on the probe sensor below — a failed sensor should not block watering.
     water_pct = sensors.get("water_level_pct")
-    if water_pct is not None and water_pct <= WATER_PUMP_CUTOFF_PCT:
-        print(f"Decision: skip — water level {water_pct:.1f}% below cutoff {WATER_PUMP_CUTOFF_PCT}%.")
+    if water_pct is not None and water_pct <= pump_cutoff:
+        print(f"Decision: skip — water level {water_pct:.1f}% below cutoff {pump_cutoff}%.")
         return False, 0, "empty_butt"
 
     # --- Condition 3b: Probe sensor dry? (backup hardware protection) ---
     # probe_sensor_ok is None if the sensor couldn't be read — treated as safe
     # so a faulty sensor doesn't block watering permanently.
-    probe_ok = sensors.get("probe_sensor_ok")
-    if probe_ok is False:
-        print("Decision: skip — probe sensor reads dry.")
-        return False, 0, "empty_butt"
+    # Skipped entirely when PROBE_SENSOR_ENABLED is False (Gist override) — the
+    # probe gives false DRY readings in low-conductivity rainwater, so the
+    # ultrasonic level cutoff (Condition 3) becomes the sole dry-run guard.
+    if probe_enabled:
+        probe_ok = sensors.get("probe_sensor_ok")
+        if probe_ok is False:
+            print("Decision: skip — probe sensor reads dry.")
+            return False, 0, "empty_butt"
+    else:
+        print("Decision: probe sensor check disabled via Gist — relying on water level %.")
 
     # --- Condition 4: Weather data available? ---
     if weather is None:
@@ -168,25 +183,33 @@ def check_watering(weather, sensors, battery_v, tier):
         # Probe sensor still checked as safety.
         stored_sunrise = power.get_sunrise_unix()
         if stored_sunrise and not power.get_watered_today():
+            sunrise_offset_m = getattr(_cfg, "WATERING_SUNRISE_OFFSET_M", -30)
+            window_m         = getattr(_cfg, "WATERING_WINDOW_M", 10)
+            base_duration    = getattr(_cfg, "WATERING_BASE_DURATION_S", 600)
             now_unix    = time.time()
-            target_unix = stored_sunrise + (WATERING_SUNRISE_OFFSET_M * 60)
-            window_s    = (WATERING_WINDOW_M + 10) * 60   # slightly wider window offline
+            target_unix = stored_sunrise + (sunrise_offset_m * 60)
+            window_s    = (window_m + 10) * 60   # slightly wider window offline
             if abs(now_unix - target_unix) <= window_s:
                 print("Decision: OFFLINE BACKUP — no weather data, using stored sunrise.")
-                return True, int(WATERING_BASE_DURATION_S), "none"
+                return True, int(base_duration), "none"
         print("Decision: skip — no weather data available.")
         return False, 0, "no_weather_data"
 
     # --- Condition 5: Frost forecast? ---
     temp_min = weather.get("temp_min")
-    if temp_min is not None and temp_min <= FROST_THRESHOLD_C:
+    if temp_min is not None and temp_min <= frost_threshold:
         print(f"Decision: skip — frost forecast (min {temp_min}°C).")
         return False, 0, "frost"
 
     # --- Condition 6: Rain forecast? ---
+    # Skip only when BOTH the probability and the predicted amount are high —
+    # a high chance of 0.5mm drizzle should not skip watering, but a high
+    # chance of a real downpour should.
     rain_pct = weather.get("rain_pct", 0)
-    if rain_pct >= RAIN_SKIP_THRESHOLD_PCT:
-        print(f"Decision: skip — rain forecast {rain_pct}% (threshold {RAIN_SKIP_THRESHOLD_PCT}%).")
+    forecast_rain_mm = weather.get("forecast_rain_mm", 0.0)
+    if rain_pct >= rain_pct_threshold and forecast_rain_mm >= rain_amount_threshold:
+        print(f"Decision: skip — rain forecast {rain_pct}% / {forecast_rain_mm}mm "
+              f"(thresholds {rain_pct_threshold}% / {rain_amount_threshold}mm).")
         return False, 0, "rain"
 
     # --- Condition 7: Is it time? ---
