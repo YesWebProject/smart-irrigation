@@ -48,7 +48,7 @@ fetches weather data, and decides whether to water. All cloud services are fully
 - Protected files (NEVER overwritten by OTA): `config.py`, `secrets.py`, `state.bin`, `_ota_version`
 - `config.py` changes always need manual Thonny upload — plan accordingly
 
-**Current manifest version: 17**
+**Current manifest version: 18**
 
 ## Battery power tiers
 | Voltage | Tier | Sleep | Commands |
@@ -65,7 +65,8 @@ fetches weather data, and decides whether to water. All cloud services are fully
 | `water_now` | Run pump immediately |
 | `snooze` | Skip today's scheduled watering |
 | `cancel` | Clear a pending water_now |
-| `test` | 5-minute dense readings (15s interval) — for signal/sensor verification |
+| `test` | 5-minute dense readings (15s interval) — for signal/sensor verification; reports a probe wet/dry summary |
+| `probe_test` | One-shot probe diagnostic — 5 pulse reads (force-reads even when the probe is disabled), replies with wet/dry tally + current water level for cross-check |
 
 ## Persistent state (state.bin on Pico flash)
 11-byte binary file — survives deep sleep. Managed entirely by power.py.
@@ -103,6 +104,9 @@ low-conductivity rainwater causes false DRY readings)
 - A02YYUW gets condensation on face (water butt humidity) — median filter in hardware.py rejects single bad readings
 - WiFi signal: -76 dBm (marginal but workable via extender)
 - NTP sync: retries 3 times with 2s delay — occasional failures normal at this signal level
+- Probe (GP14) corrodes from DC bias through water. As of v18 it is pulse-powered (pull-up on ~1ms
+  per read, idle high-Z) and is only energised in normal cycles when `PROBE_SENSOR_ENABLED` is true.
+  Diagnostics (`test`, `probe_test`) force-read it regardless, to check it while installed.
 
 ## Git workflow
 ```bash

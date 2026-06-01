@@ -74,6 +74,7 @@ def _run_test_mode(wlan):
 
     deadline = time.ticks_add(time.ticks_ms(), DURATION_S * 1000)
     reading  = 0
+    probe_wet = probe_dry = probe_err = 0   # probe tally for the completion summary
 
     while time.ticks_diff(deadline, time.ticks_ms()) > 0:
         reading += 1
@@ -81,7 +82,10 @@ def _run_test_mode(wlan):
 
         w_pct = hardware.read_water_level_pct()
         w_mm  = hardware.read_water_level_mm()
-        probe = hardware.read_probe_sensor()
+        probe = hardware.read_probe_sensor()   # forced read — diagnostic, ignores disable flag
+        if   probe is True:  probe_wet += 1
+        elif probe is False: probe_dry += 1
+        else:                probe_err += 1
         v, _  = power.run(send_alert=lambda m: None)
         rssi  = wlan.status("rssi")
         watchdog.feed()
@@ -112,8 +116,45 @@ def _run_test_mode(wlan):
             time.sleep(1)
             watchdog.feed()
 
-    cloud.send_ntfy_alert("Test mode complete.")
-    print("Test mode complete.")
+    probe_total = probe_wet + probe_dry + probe_err
+    probe_summary = f"probe wet {probe_wet}/{probe_total}, dry {probe_dry}/{probe_total}"
+    if probe_err:
+        probe_summary += f", err {probe_err}/{probe_total}"
+    cloud.send_ntfy_alert(f"Test mode complete — {probe_summary}.")
+    print(f"Test mode complete — {probe_summary}.")
+
+
+def _run_probe_test():
+    """
+    Quick one-shot probe diagnostic, triggered by the "probe_test" ntfy command.
+    Force-reads the probe a few times (pulse-powered) EVEN WHEN it is disabled via
+    the Gist, then replies over ntfy with the wet/dry tally alongside the current
+    ultrasonic level so the result can be cross-checked while the probe is installed.
+    """
+    print("\n>>> PROBE TEST <<<")
+    reads = []
+    for _ in range(5):
+        watchdog.feed()
+        reads.append(hardware.read_probe_sensor())
+        time.sleep_ms(300)
+
+    wet = sum(1 for r in reads if r is True)
+    dry = sum(1 for r in reads if r is False)
+    err = sum(1 for r in reads if r is None)
+
+    lvl = hardware.read_water_level_pct()
+    lvl_str = f"{lvl:.0f}%" if lvl is not None else "no reading"
+
+    msg = f"Probe test: wet {wet}/5, dry {dry}/5"
+    if err:
+        msg += f", err {err}/5"
+    msg += f" | water level {lvl_str}"
+    # If the butt clearly holds water above the probe but it reads dry, flag a likely fault.
+    if lvl is not None and lvl > decisions.pump_cutoff_pct() and wet == 0 and dry > 0:
+        msg += " — butt has water but probe reads DRY, likely faulty/corroded"
+
+    cloud.send_ntfy_alert(msg)
+    print(msg)
 
 
 # ── Stage 2: Watchdog ───────────────────────────────────────────────────────
@@ -155,7 +196,10 @@ except RuntimeError as e:
     print("WiFi offline — attempting offline sensor read and watering check.")
     try:
         w_pct  = hardware.read_water_level_pct()
-        probe  = hardware.read_probe_sensor()
+        if getattr(config, "PROBE_SENSOR_ENABLED", True):
+            probe = hardware.read_probe_sensor()
+        else:
+            probe = None
         w_mm   = hardware.read_water_level_mm()
         stored_sunrise = power.get_sunrise_unix()
         if (stored_sunrise
@@ -173,7 +217,11 @@ except RuntimeError as e:
                 print("Offline cycle: watering window reached — running pump.")
                 def _offline_safety():
                     watchdog.feed()
-                    return hardware.read_probe_sensor() is not False
+                    if getattr(config, "PROBE_SENSOR_ENABLED", True):
+                        return hardware.read_probe_sensor() is not False
+                    # Probe disabled — fall back to the ultrasonic cutoff for dry-run safety.
+                    lvl = hardware.read_water_level_pct()
+                    return lvl is None or lvl > decisions.pump_cutoff_pct()
                 ran = hardware.run_pump(int(WATERING_BASE_DURATION_S), safety_check=_offline_safety)
                 power.set_watered_today(True)
                 print(f"Offline cycle: pump ran {ran}s.")
@@ -228,7 +276,14 @@ watchdog.feed()
 water_pct = hardware.read_water_level_pct()
 water_mm  = hardware.read_water_level_mm()   # raw mm — for calibration, logged to InfluxDB
 watchdog.feed()
-probe_ok  = hardware.read_probe_sensor()
+# Only energise the probe when it's enabled — a disabled probe must not be
+# electrically read each wake (the pull-up bias corrodes the electrodes).
+# Diagnostics (test / probe_test) call read_probe_sensor() directly to force a read.
+if getattr(config, "PROBE_SENSOR_ENABLED", True):
+    probe_ok = hardware.read_probe_sensor()
+else:
+    probe_ok = None
+    print("Probe sensor: disabled via Gist — not energised this cycle.")
 watchdog.feed()
 
 sensors = {
@@ -248,14 +303,16 @@ snooze    = False
 if power.commands_accepted(tier):
     commands  = cloud.check_ntfy_commands(sleep_s)
     watchdog.feed()
-    water_now = "water_now" in commands
-    snooze    = "snooze"    in commands
-    cancel    = "cancel"    in commands
-    test      = "test"      in commands
+    water_now  = "water_now"  in commands
+    snooze     = "snooze"     in commands
+    cancel     = "cancel"     in commands
+    test       = "test"       in commands
+    probe_test = "probe_test" in commands
 else:
     print(f"Tier {tier}: commands ignored.")
-    cancel = False
-    test   = False
+    cancel     = False
+    test       = False
+    probe_test = False
 
 if cancel:
     water_now = False
@@ -264,6 +321,9 @@ if cancel:
 
 if test:
     _run_test_mode(wlan)
+
+if probe_test:
+    _run_probe_test()
 
 if snooze:
     power.set_watered_today(True)

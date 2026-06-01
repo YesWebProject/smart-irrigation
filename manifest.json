@@ -1,6 +1,6 @@
 {
-  "version": 17,
-  "notes": "Raise pump duration cap 900s->1800s so temp_scaling multipliers >1.0 aren't flattened (decisions.MAX_DURATION_S + hardware._PUMP_MAX_S); richer 'watering complete' ntfy message with temp/multiplier/base/rain/level via a decision-context dict from check_watering (now a 4-tuple); log yesterday's actual max temp + rain_sum at yesterday's timestamp (past_days=1, today shifted to last daily index) for forecast-vs-actual on Grafana.",
+  "version": 18,
+  "notes": "Probe anti-corrosion: pulse-power the GP14 conductivity probe (pull-up only ~1ms per read, idle high-Z) instead of biasing it the whole wake; skip energising it entirely when PROBE_SENSOR_ENABLED is false (Stage 7 + offline now gated, offline falls back to ultrasonic cutoff). New 'probe_test' ntfy command force-reads the probe (5 pulse reads) and replies with wet/dry tally + water level for cross-check; 'test' mode now reports a probe wet/dry summary too.",
   "base_url": "https://raw.githubusercontent.com/YesWebProject/smart-irrigation/main/",
   "files": [
     "main.py",

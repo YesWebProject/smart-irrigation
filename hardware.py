@@ -151,14 +151,27 @@ class ProbeWaterSensor:
     """
 
     def __init__(self):
-        self._pin = Pin(PROBE_PIN, Pin.IN, Pin.PULL_UP)
+        # Idle in high-impedance input (no pull) so the probe carries NO standing
+        # current — a continuous DC bias through the water electrolyses and corrodes
+        # the electrodes. The pull-up is enabled only for the brief instant of each
+        # read (see water_present), then released again.
+        self._pin = Pin(PROBE_PIN, Pin.IN, None)
 
     def water_present(self):
         """
         Returns True if water is touching both probes (pin reads LOW).
         Returns False if the probes are dry (pin reads HIGH).
+
+        Pulse-powered: the internal pull-up is switched on only long enough to
+        sample, then the pin is returned to high-impedance. This keeps the probe
+        energised for ~1ms per read instead of the whole wake cycle, drastically
+        reducing electrolytic corrosion.
         """
-        return self._pin.value() == 0
+        self._pin.init(Pin.IN, Pin.PULL_UP)   # energise
+        time.sleep_ms(1)                       # settle (pull-up vs probe/water RC)
+        val = self._pin.value()
+        self._pin.init(Pin.IN, None)           # release to high-Z — no standing bias
+        return val == 0
 
 
 # ---------------------------------------------------------------------------
