@@ -1639,7 +1639,7 @@
                         "name": "${datasource}"
                       },
                       "spec": {
-                        "query": "from(bucket: \"irrigation\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"sensor_distance_full_mm\")\n  |> last()"
+                        "query": "from(bucket: \"irrigation\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"sensor_distance_full_mm\")\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)"
                       }
                     },
                     "refId": "B",
@@ -1657,7 +1657,7 @@
                         "name": "${datasource}"
                       },
                       "spec": {
-                        "query": "from(bucket: \"irrigation\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"sensor_distance_empty_mm\")\n  |> last()"
+                        "query": "from(bucket: \"irrigation\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"sensor_distance_empty_mm\")\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)"
                       }
                     },
                     "refId": "C",
@@ -1675,7 +1675,7 @@
                         "name": "${datasource}"
                       },
                       "spec": {
-                        "query": "from(bucket: \"irrigation\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"sensor_distance_pump_mm\")\n  |> last()"
+                        "query": "from(bucket: \"irrigation\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"irrigation\" and r._field == \"sensor_distance_pump_mm\")\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)"
                       }
                     },
                     "refId": "D",
@@ -1805,6 +1805,10 @@
                       {
                         "id": "custom.pointSize",
                         "value": 8
+                      },
+                      {
+                        "id": "custom.spanNulls",
+                        "value": true
                       }
                     ]
                   },
@@ -1846,6 +1850,10 @@
                       {
                         "id": "custom.pointSize",
                         "value": 8
+                      },
+                      {
+                        "id": "custom.spanNulls",
+                        "value": true
                       }
                     ]
                   },
@@ -1887,6 +1895,10 @@
                       {
                         "id": "custom.pointSize",
                         "value": 8
+                      },
+                      {
+                        "id": "custom.spanNulls",
+                        "value": true
                       }
                     ]
                   }
