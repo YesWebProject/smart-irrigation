@@ -30,8 +30,10 @@ from config import (
 import config as _cfg
 
 # Maximum pump run time — hard cap applied here in hardware, regardless of
-# what decisions.py or a manual command requests
-_PUMP_MAX_S = 900
+# what decisions.py or a manual command requests.
+# Kept in sync with decisions.MAX_DURATION_S (1800s) so a long temperature-scaled
+# duration isn't silently re-clamped at the hardware layer.
+_PUMP_MAX_S = 1800
 
 # ---------------------------------------------------------------------------
 # A02YYUW — water level

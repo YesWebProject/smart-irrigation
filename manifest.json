@@ -1,6 +1,6 @@
 {
-  "version": 16,
-  "notes": "OTA check moved to run every wake cycle (was once per day on new sunrise); updates now land within one sleep interval. Also removed pump_cutoff_pct from Gist reference (SENSOR_DISTANCE_PUMP_MM is the preferred calibration).",
+  "version": 17,
+  "notes": "Raise pump duration cap 900s->1800s so temp_scaling multipliers >1.0 aren't flattened (decisions.MAX_DURATION_S + hardware._PUMP_MAX_S); richer 'watering complete' ntfy message with temp/multiplier/base/rain/level via a decision-context dict from check_watering (now a 4-tuple); log yesterday's actual max temp + rain_sum at yesterday's timestamp (past_days=1, today shifted to last daily index) for forecast-vs-actual on Grafana.",
   "base_url": "https://raw.githubusercontent.com/YesWebProject/smart-irrigation/main/",
   "files": [
     "main.py",

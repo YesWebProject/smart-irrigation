@@ -126,10 +126,13 @@ def check_ntfy_commands(sleep_seconds):
 # ---------------------------------------------------------------------------
 # InfluxDB Cloud — data logging
 # ---------------------------------------------------------------------------
-def _build_line_protocol(fields, measurement="irrigation", location="garden"):
+def _build_line_protocol(fields, measurement="irrigation", location="garden", timestamp_ns=None):
     """
     Build an InfluxDB line protocol string from a dict of fields.
     Handles floats, ints, strings, and booleans correctly.
+
+    If timestamp_ns is given it is appended (nanoseconds, Unix epoch) so the point
+    lands at a specific time; otherwise InfluxDB assigns the server's current time.
 
     Example output:
         irrigation,location=garden temp_c=18.4,pump_runtime_s=480i,skip_reason="none",frost_alert=false
@@ -147,15 +150,22 @@ def _build_line_protocol(fields, measurement="irrigation", location="garden"):
             field_parts.append(f'{key}="{value}"')
 
     field_str = ",".join(field_parts)
-    return f"{measurement},location={location} {field_str}"
+    line = f"{measurement},location={location} {field_str}"
+    if timestamp_ns is not None:
+        line += f" {int(timestamp_ns)}"
+    return line
 
 
-def log_to_influx(fields):
+def log_to_influx(fields, timestamp_ns=None):
     """
     Write a data point to InfluxDB Cloud using line protocol.
 
     Call with a dict of field names and values. All fields are optional —
     include whatever is available on this wake cycle.
+
+    timestamp_ns (optional) places the point at a specific Unix time in
+    nanoseconds — used to log yesterday's actual weather at yesterday's slot.
+    When omitted, InfluxDB assigns the current server time (normal behaviour).
 
     Example:
         cloud.log_to_influx({
@@ -170,7 +180,7 @@ def log_to_influx(fields):
         })
     """
     try:
-        line = _build_line_protocol(fields)
+        line = _build_line_protocol(fields, timestamp_ns=timestamp_ns)
         url  = (
             f"{secrets.INFLUX_URL}/api/v2/write"
             f"?org={secrets.INFLUX_ORG}"
@@ -210,27 +220,45 @@ def fetch_weather():
     try:
         # Build the URL here (rather than from config.OPENMETEO_URL) so rain_sum
         # is always requested and lat/lon pick up any Gist override — no config.py change needed.
+        # past_days=1 + forecast_days=1 returns two daily entries: [yesterday, today].
+        # Today is the LAST entry; yesterday (the entry before it) carries the
+        # actuals we log back at yesterday's timestamp for forecast-vs-actual.
         url = (
             "https://api.open-meteo.com/v1/forecast"
             f"?latitude={getattr(_cfg, 'LATITUDE', 50.569903)}"
             f"&longitude={getattr(_cfg, 'LONGITUDE', -3.651687)}"
             f"&daily=sunrise,precipitation_probability_max,temperature_2m_max,temperature_2m_min,rain_sum"
             f"&timezone=UTC"
+            f"&past_days=1"
             f"&forecast_days=1"
         )
         r    = urequests.get(url, timeout=5)
         data = json.loads(r.text)
         r.close()
 
-        daily      = data["daily"]
-        rain_pct   = daily["precipitation_probability_max"][0]
-        temp_max   = daily["temperature_2m_max"][0]
-        temp_min   = daily["temperature_2m_min"][0]
-        sunrise_str = daily["sunrise"][0]   # e.g. "2024-05-15T05:23"
+        daily = data["daily"]
+        ti = len(daily["temperature_2m_max"]) - 1   # today = last daily entry
+        yi = ti - 1                                  # yesterday = the entry before it
 
-        # Total predicted rainfall (mm) — default to 0.0 if missing or null
-        rain_sum = daily.get("rain_sum", [None])
-        forecast_rain_mm = rain_sum[0] if rain_sum and rain_sum[0] is not None else 0.0
+        rain_pct   = daily["precipitation_probability_max"][ti]
+        temp_max   = daily["temperature_2m_max"][ti]
+        temp_min   = daily["temperature_2m_min"][ti]
+        sunrise_str = daily["sunrise"][ti]   # e.g. "2024-05-15T05:23"
+
+        # Total predicted rainfall (mm) for today — default to 0.0 if missing or null
+        rain_sum = daily.get("rain_sum") or []
+        forecast_rain_mm = rain_sum[ti] if ti < len(rain_sum) and rain_sum[ti] is not None else 0.0
+
+        # Yesterday's actuals (index yi) — logged at yesterday's timestamp so they
+        # land beside the forecast that was recorded yesterday. None if unavailable.
+        actual_temp_max_c = None
+        actual_rain_mm    = None
+        if yi >= 0:
+            tmax = daily.get("temperature_2m_max") or []
+            if yi < len(tmax) and tmax[yi] is not None:
+                actual_temp_max_c = tmax[yi]
+            if yi < len(rain_sum) and rain_sum[yi] is not None:
+                actual_rain_mm = rain_sum[yi]
 
         # Parse sunrise string to unix timestamp
         # MicroPython time.mktime takes (year, month, day, hour, min, sec, weekday, yearday)
@@ -240,13 +268,16 @@ def fetch_weather():
         sunrise_unix = time.mktime((year, month, day, hour, minute, 0, 0, 0))
 
         print(f"Weather: rain={rain_pct}% / {forecast_rain_mm}mm  sunrise={sunrise_str}  "
-              f"max={temp_max}°C  min={temp_min}°C")
+              f"max={temp_max}°C  min={temp_min}°C  "
+              f"(yesterday actual: max={actual_temp_max_c}°C rain={actual_rain_mm}mm)")
         return {
-            "rain_pct":         rain_pct,
-            "forecast_rain_mm": forecast_rain_mm,
-            "sunrise_unix":     sunrise_unix,
-            "temp_max":         temp_max,
-            "temp_min":         temp_min,
+            "rain_pct":          rain_pct,
+            "forecast_rain_mm":  forecast_rain_mm,
+            "sunrise_unix":      sunrise_unix,
+            "temp_max":          temp_max,
+            "temp_min":          temp_min,
+            "actual_temp_max_c": actual_temp_max_c,
+            "actual_rain_mm":    actual_rain_mm,
         }
 
     except Exception as e:

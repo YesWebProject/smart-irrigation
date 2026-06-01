@@ -289,6 +289,22 @@ if weather is not None and time_valid:
         power.set_watered_today(False)
         power.save_sunrise_unix(new_sunrise)
 
+        # Log yesterday's actual weather at yesterday's timestamp so it lands
+        # directly beside the forecast that was recorded yesterday — making
+        # forecast-vs-actual a visual comparison with no mental offset.
+        # Written once per day (only on new-sunrise detection), not every wake.
+        # MicroPython's epoch is 2000-01-01; InfluxDB wants Unix (1970) ns,
+        # so add 946684800s (the 2000→1970 offset) before converting.
+        actual = {}
+        if weather.get("actual_temp_max_c") is not None:
+            actual["actual_temp_max_c"] = weather["actual_temp_max_c"]
+        if weather.get("actual_rain_mm") is not None:
+            actual["actual_rain_mm"] = weather["actual_rain_mm"]
+        if actual:
+            yesterday_ns = (int(time.time()) + 946684800 - 86400) * 1000000000
+            cloud.log_to_influx(actual, timestamp_ns=yesterday_ns)
+            watchdog.feed()
+
 # OTA check — runs every wake cycle so updates land within one sleep interval.
 # Fetches manifest.json, compares version, and exits immediately if up to date.
 # If an update is available it downloads, applies, and reboots — does not return.
@@ -313,9 +329,10 @@ if not time_valid:
     should_water = False
     duration_s   = 0
     skip_reason  = "time_unknown"
+    decision_ctx = None
     print("Watering decision skipped — time not known.")
 else:
-    should_water, duration_s, skip_reason = decisions.check_watering(
+    should_water, duration_s, skip_reason, decision_ctx = decisions.check_watering(
         weather   = weather,
         sensors   = sensors,
         battery_v = voltage,
@@ -337,6 +354,37 @@ pump_health_warning = False
 # rate-limited to once every 6 ticks (~30 s). The probe sensor (GPIO, <1 ms)
 # still runs every tick so dry-run is caught promptly.
 _safety_state = [0, None]
+
+def _build_water_msg(runtime_s, planned_s, stopped_early, ctx, level_before, level_after, health_warn):
+    """
+    Build a concise human-readable watering-complete ntfy message, e.g.:
+        Watered 21 min | 19.7°C ×1.4 | Base 900s | Rain 20%/1.2mm | Level 67%→54%
+        Stopped early at 8 min (planned 21 min) | 19.7°C ×1.4 | ...
+    ctx is the decision context dict from decisions.check_watering (or None for
+    a manual water_now with no scheduled decision behind it).
+    """
+    if stopped_early:
+        parts = [f"Stopped early at {runtime_s // 60} min (planned {planned_s // 60} min)"]
+    else:
+        parts = [f"Watered {runtime_s // 60} min"]
+
+    if ctx:
+        if ctx.get("temp_c") is not None and ctx.get("multiplier") is not None:
+            parts.append(f"{ctx['temp_c']}°C ×{ctx['multiplier']}")
+        if ctx.get("base_duration_s") is not None:
+            parts.append(f"Base {ctx['base_duration_s']}s")
+        if ctx.get("rain_pct") is not None and ctx.get("rain_mm") is not None:
+            parts.append(f"Rain {ctx['rain_pct']}%/{ctx['rain_mm']}mm")
+
+    if level_before is not None or level_after is not None:
+        b = f"{level_before:.0f}%" if level_before is not None else "N/A"
+        a = f"{level_after:.0f}%" if level_after is not None else "N/A"
+        parts.append(f"Level {b}→{a}")
+
+    msg = " | ".join(parts)
+    if health_warn:
+        msg += " | PUMP HEALTH WARNING: low flow"
+    return msg
 
 def _pump_safety_ok():
     """
@@ -379,18 +427,17 @@ if water_now and power.commands_accepted(tier):
         water_mm_before     = hardware.read_water_level_mm()
         pump_runtime_s      = hardware.run_pump(run_for, safety_check=_pump_safety_ok)
         pump_stopped_early  = pump_runtime_s < run_for
-        hardware.read_water_level_pct()          # refreshes internal cache
+        level_after         = hardware.read_water_level_pct()   # post-pump level (also refreshes cache)
         water_mm_after      = hardware.read_water_level_mm()
         pump_health_warning = decisions.check_pump_health(
             water_mm_before, water_mm_after, pump_runtime_s, pump_stopped_early
         )
         power.set_watered_today(True)
         power.set_post_water_cycles(POST_WATER_CYCLES)
-        msg = f"Manual watering complete: {pump_runtime_s}s"
-        if pump_stopped_early:
-            msg += " — stopped early by safety sensor"
-        if pump_health_warning:
-            msg += " — PUMP HEALTH WARNING: low flow detected"
+        msg = "Manual: " + _build_water_msg(
+            pump_runtime_s, run_for, pump_stopped_early,
+            decision_ctx, water_pct, level_after, pump_health_warning,
+        )
         cloud.send_ntfy_alert(msg)
         if pump_health_warning:
             cloud.send_ntfy_alert(
@@ -406,20 +453,17 @@ elif should_water:
     water_mm_before     = hardware.read_water_level_mm()
     pump_runtime_s      = hardware.run_pump(duration_s, safety_check=_pump_safety_ok)
     pump_stopped_early  = pump_runtime_s < duration_s
-    hardware.read_water_level_pct()              # refreshes internal cache
+    level_after         = hardware.read_water_level_pct()   # post-pump level (also refreshes cache)
     water_mm_after      = hardware.read_water_level_mm()
     pump_health_warning = decisions.check_pump_health(
         water_mm_before, water_mm_after, pump_runtime_s, pump_stopped_early
     )
     power.set_watered_today(True)
     power.set_post_water_cycles(POST_WATER_CYCLES)
-    msg = f"Watering complete: {pump_runtime_s}s"
-    if pump_stopped_early:
-        msg += " — stopped early by safety sensor"
-    if water_pct is not None:
-        msg += f" | level={water_pct:.1f}%"
-    if pump_health_warning:
-        msg += " — PUMP HEALTH WARNING: low flow detected"
+    msg = _build_water_msg(
+        pump_runtime_s, duration_s, pump_stopped_early,
+        decision_ctx, water_pct, level_after, pump_health_warning,
+    )
     cloud.send_ntfy_alert(msg)
     if pump_health_warning:
         cloud.send_ntfy_alert(

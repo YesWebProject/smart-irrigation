@@ -18,8 +18,11 @@ import power
 # wake cycle by cloud.apply_remote_config().
 import config as _cfg
 
-# Maximum pump runtime — hard cap regardless of temperature multiplier
-MAX_DURATION_S = 900
+# Maximum pump runtime — hard cap regardless of temperature multiplier.
+# Raised to 1800s (30 min) so the Gist temp_scaling multipliers above 1.0 are
+# not flattened: with base_duration_s=900, the table's max 2.0× = 1800s.
+# (hardware._PUMP_MAX_S is raised to match so the hardware layer doesn't re-clamp.)
+MAX_DURATION_S = 1800
 
 
 # ---------------------------------------------------------------------------
@@ -43,6 +46,10 @@ def get_watering_duration(temp_c):
     Calculate actual watering duration in seconds.
     Formula: base_duration × temp_multiplier, capped at MAX_DURATION_S.
     Returns 0 if temperature multiplier is 0 (frost protection).
+
+    Verification (current Gist scaling table + base_duration_s=900):
+        19.7°C falls in the 18 < t <= 20 bucket → multiplier 1.4
+        duration = int(900 × 1.4) = 1260s, under the 1800s cap → 1260s.
     """
     base_duration = getattr(_cfg, "WATERING_BASE_DURATION_S", 600)
     multiplier = get_temp_multiplier(temp_c)
@@ -151,12 +158,16 @@ def check_watering(weather, sensors, battery_v, tier):
         battery_v — float, current battery voltage
         tier      — int 1-4, current power tier from power.py
 
-    Returns (should_water, duration_s, skip_reason):
+    Returns (should_water, duration_s, skip_reason, decision_ctx):
         should_water — True or False
         duration_s   — seconds to run pump (0 if not watering)
         skip_reason  — string logged to InfluxDB:
                        "none" | "already_watered" | "low_battery" | "empty_butt" |
                        "frost" | "no_weather_data" | "rain" | "not_time"
+        decision_ctx — dict of the factors behind a WATER decision (for the ntfy
+                       notification), or None when not watering. Keys:
+                       temp_c, multiplier, base_duration_s, duration_s,
+                       rain_pct, rain_mm, water_pct.
 
     Side effects:
         - Reads watered-today flag from RTC memory
@@ -172,12 +183,12 @@ def check_watering(weather, sensors, battery_v, tier):
     # --- Condition 1: Already watered today? ---
     if power.get_watered_today():
         print("Decision: skip — already watered today.")
-        return False, 0, "already_watered"
+        return False, 0, "already_watered", None
 
     # --- Condition 2: Battery too low? ---
     if tier >= 3:
         print(f"Decision: skip — battery tier {tier} ({battery_v}V), too low to water.")
-        return False, 0, "low_battery"
+        return False, 0, "low_battery", None
 
     # --- Condition 3: Water level too low? (pump dry-run protection) ---
     # If the ultrasonic sensor gave no reading (None), skip this check and rely
@@ -185,7 +196,7 @@ def check_watering(weather, sensors, battery_v, tier):
     water_pct = sensors.get("water_level_pct")
     if water_pct is not None and water_pct <= pump_cutoff:
         print(f"Decision: skip — water level {water_pct:.1f}% below cutoff {pump_cutoff}%.")
-        return False, 0, "empty_butt"
+        return False, 0, "empty_butt", None
 
     # --- Condition 3b: Probe sensor dry? (backup hardware protection) ---
     # probe_sensor_ok is None if the sensor couldn't be read — treated as safe
@@ -197,7 +208,7 @@ def check_watering(weather, sensors, battery_v, tier):
         probe_ok = sensors.get("probe_sensor_ok")
         if probe_ok is False:
             print("Decision: skip — probe sensor reads dry.")
-            return False, 0, "empty_butt"
+            return False, 0, "empty_butt", None
     else:
         print("Decision: probe sensor check disabled via Gist — relying on water level %.")
 
@@ -217,15 +228,20 @@ def check_watering(weather, sensors, battery_v, tier):
             window_s    = (window_m + 10) * 60   # slightly wider window offline
             if abs(now_unix - target_unix) <= window_s:
                 print("Decision: OFFLINE BACKUP — no weather data, using stored sunrise.")
-                return True, int(base_duration), "none"
+                offline_ctx = {
+                    "temp_c": None, "multiplier": 1.0,
+                    "base_duration_s": base_duration, "duration_s": int(base_duration),
+                    "rain_pct": None, "rain_mm": None, "water_pct": water_pct,
+                }
+                return True, int(base_duration), "none", offline_ctx
         print("Decision: skip — no weather data available.")
-        return False, 0, "no_weather_data"
+        return False, 0, "no_weather_data", None
 
     # --- Condition 5: Frost forecast? ---
     temp_min = weather.get("temp_min")
     if temp_min is not None and temp_min <= frost_threshold:
         print(f"Decision: skip — frost forecast (min {temp_min}°C).")
-        return False, 0, "frost"
+        return False, 0, "frost", None
 
     # --- Condition 6: Rain forecast? ---
     # Skip only when BOTH the probability and the predicted amount are high —
@@ -236,34 +252,44 @@ def check_watering(weather, sensors, battery_v, tier):
     if rain_pct >= rain_pct_threshold and forecast_rain_mm >= rain_amount_threshold:
         print(f"Decision: skip — rain forecast {rain_pct}% / {forecast_rain_mm}mm "
               f"(thresholds {rain_pct_threshold}% / {rain_amount_threshold}mm).")
-        return False, 0, "rain"
+        return False, 0, "rain", None
 
     # --- Condition 7: Is it time? ---
     sunrise_unix = weather.get("sunrise_unix")
     if sunrise_unix is None:
         print("Decision: skip — no sunrise time in weather data.")
-        return False, 0, "no_weather_data"
+        return False, 0, "no_weather_data", None
 
     if not _is_watering_time(sunrise_unix):
         print("Decision: not watering — outside time window.")
-        return False, 0, "not_time"
+        return False, 0, "not_time", None
 
     # --- All conditions passed — calculate duration ---
     temp_max = weather.get("temp_max")
-    duration = get_watering_duration(temp_max if temp_max is not None else 18.0)
+    temp_for_calc = temp_max if temp_max is not None else 18.0
+    duration = get_watering_duration(temp_for_calc)
 
     if duration == 0:
         # temp_multiplier was 0.0 — catches edge case where temp just above FROST_THRESHOLD_C
         # but below the first scaling tier
         print(f"Decision: skip — temperature multiplier is 0 at {temp_max}°C.")
-        return False, 0, "frost"
+        return False, 0, "frost", None
 
     water_str = f"{water_pct:.1f}%" if water_pct is not None else "N/A"
     print(
         f"Decision: WATER for {duration}s "
         f"(temp={temp_max}°C, rain={rain_pct}%, water={water_str})"
     )
-    return True, duration, "none"
+    decision_ctx = {
+        "temp_c":          temp_max,
+        "multiplier":      get_temp_multiplier(temp_for_calc),
+        "base_duration_s": getattr(_cfg, "WATERING_BASE_DURATION_S", 600),
+        "duration_s":      duration,
+        "rain_pct":        rain_pct,
+        "rain_mm":         forecast_rain_mm,
+        "water_pct":       water_pct,
+    }
+    return True, duration, "none", decision_ctx
 
 
 # ---------------------------------------------------------------------------
