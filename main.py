@@ -353,15 +353,15 @@ if weather is not None and time_valid:
         # directly beside the forecast that was recorded yesterday — making
         # forecast-vs-actual a visual comparison with no mental offset.
         # Written once per day (only on new-sunrise detection), not every wake.
-        # MicroPython's epoch is 2000-01-01; InfluxDB wants Unix (1970) ns,
-        # so add 946684800s (the 2000→1970 offset) before converting.
         actual = {}
         if weather.get("actual_temp_max_c") is not None:
             actual["actual_temp_max_c"] = weather["actual_temp_max_c"]
         if weather.get("actual_rain_mm") is not None:
             actual["actual_rain_mm"] = weather["actual_rain_mm"]
         if actual:
-            yesterday_ns = (int(time.time()) + 946684800 - 86400) * 1000000000
+            # time.time() on Pico 2W returns Unix seconds (since 1970) after ntptime.settime().
+            # Subtract one day to get yesterday's Unix timestamp in nanoseconds for InfluxDB.
+            yesterday_ns = (int(time.time()) - 86400) * 1000000000
             cloud.log_to_influx(actual, timestamp_ns=yesterday_ns)
             watchdog.feed()
 
@@ -560,6 +560,20 @@ log_data = {
 # line is absent rather than pinned at 0 when the percentage cutoff is in use.
 if getattr(config, "SENSOR_DISTANCE_PUMP_MM", 0):
     log_data["sensor_distance_pump_mm"] = config.SENSOR_DISTANCE_PUMP_MM
+
+# Decision-threshold reference values (post-Gist override) — logged so Grafana can
+# draw auto-updating reference lines on the weather panels. All forced to float to
+# keep a single InfluxDB field type. Changing these in the Gist moves the lines.
+#   - rain skip limits → dashed lines on the Forecast Rain panel (skip needs BOTH)
+#   - temp_scaling boundaries → one dashed line per bracket on the Forecast Temp panel
+log_data["rain_skip_probability_pct"] = float(getattr(config, "RAIN_SKIP_THRESHOLD_PCT", 60))
+log_data["rain_skip_amount_mm"]       = float(getattr(config, "RAIN_SKIP_AMOUNT_MM", 5.0))
+
+# Temp-scaling bracket boundaries — skip the open-ended sentinel (999), ascending,
+# capped at 6 indexed fields (temp_bracket_1_c … temp_bracket_6_c).
+_temp_bounds = [t for (t, _m) in getattr(config, "TEMP_SCALING", []) if t < 100]
+for _bi, _bt in enumerate(_temp_bounds[:6], start=1):
+    log_data[f"temp_bracket_{_bi}_c"] = float(_bt)
 
 # Log Open-Meteo forecast values so they appear on Grafana graphs
 if weather is not None:

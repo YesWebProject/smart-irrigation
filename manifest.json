@@ -1,6 +1,6 @@
 {
-  "version": 18,
-  "notes": "Probe anti-corrosion: pulse-power the GP14 conductivity probe (pull-up only ~1ms per read, idle high-Z) instead of biasing it the whole wake; skip energising it entirely when PROBE_SENSOR_ENABLED is false (Stage 7 + offline now gated, offline falls back to ultrasonic cutoff). New 'probe_test' ntfy command force-reads the probe (5 pulse reads) and replies with wet/dry tally + water level for cross-check; 'test' mode now reports a probe wet/dry summary too.",
+  "version": 20,
+  "notes": "Dashboard reference lines: log Gist-overridden decision thresholds to InfluxDB so Grafana can draw auto-updating reference lines. New fields: rain_skip_probability_pct, rain_skip_amount_mm, and temp_bracket_1_c..temp_bracket_6_c (temp_scaling boundaries). Also includes the v19 yesterday_ns epoch double-offset fix.",
   "base_url": "https://raw.githubusercontent.com/YesWebProject/smart-irrigation/main/",
   "files": [
     "main.py",
