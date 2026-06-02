@@ -31,6 +31,28 @@ from config import (
 import config as _cfg
 
 
+# Set True once an InfluxDB-write-failure alert has been sent this wake cycle, so a
+# cycle that logs many points doesn't spam the phone. Module state resets on reboot,
+# so this naturally re-arms once per wake (deep sleep re-imports the module).
+_influx_alert_sent = False
+
+
+def _http_ok(r, label):
+    """
+    Inspect an HTTP response status and warn on any non-2xx.
+
+    urequests sets r.status_code; a 401/403/404 does NOT raise, so without this
+    check a rejected write would look successful. Returns (ok, code). If the
+    status can't be read, assume OK rather than raise a false alarm.
+    Read this BEFORE r.close().
+    """
+    code = getattr(r, "status_code", None)
+    if code is not None and not (200 <= code < 300):
+        print(f"{label}: HTTP {code} — request rejected")
+        return False, code
+    return True, code
+
+
 # ---------------------------------------------------------------------------
 # Time sync
 # ---------------------------------------------------------------------------
@@ -73,8 +95,11 @@ def send_ntfy_alert(message):
             headers={"Content-Type": "text/plain"},
             timeout=NTFY_TIMEOUT_S,
         )
+        # Don't alert-on-alert-failure (would loop / can't reach ntfy anyway) — just warn.
+        ok, _code = _http_ok(r, "ntfy alert")
         r.close()
-        print(f"Alert sent: {message}")
+        if ok:
+            print(f"Alert sent: {message}")
     except Exception as e:
         print(f"ntfy alert failed: {e}")
 
@@ -96,6 +121,10 @@ def check_ntfy_commands(sleep_seconds):
         since = f"{int(sleep_seconds)}s"
         url   = f"https://ntfy.sh/{secrets.NTFY_COMMANDS_TOPIC}/json?poll=1&since={since}"
         r     = urequests.get(url, timeout=NTFY_TIMEOUT_S)
+        ok, _code = _http_ok(r, "ntfy commands")
+        if not ok:
+            r.close()
+            return []
         text  = r.text.strip()
         r.close()
 
@@ -192,8 +221,25 @@ def log_to_influx(fields, timestamp_ns=None):
             "Content-Type":  "text/plain; charset=utf-8",
         }
         r = urequests.post(url, data=line, headers=headers, timeout=INFLUX_TIMEOUT_S)
+        # A rejected write (e.g. 401 from a bad/scoped token, 404 from a missing
+        # bucket) does NOT raise — check the status so it can't fail silently.
+        ok, code = _http_ok(r, "InfluxDB")
         r.close()
-        print(f"InfluxDB: logged {list(fields.keys())}")
+        if ok:
+            print(f"InfluxDB: logged {list(fields.keys())}")
+        else:
+            # One alert per wake cycle (this runs several times) — point at the
+            # usual culprit after a bucket/token change.
+            global _influx_alert_sent
+            if not _influx_alert_sent:
+                _influx_alert_sent = True
+                try:
+                    send_ntfy_alert(
+                        f"InfluxDB write rejected (HTTP {code}) — logging is down. "
+                        "Check the API token has write access to the bucket."
+                    )
+                except Exception:
+                    pass
 
     except Exception as e:
         print(f"InfluxDB failed: {e}")
@@ -233,6 +279,10 @@ def fetch_weather():
             f"&forecast_days=1"
         )
         r    = urequests.get(url, timeout=5)
+        ok, _code = _http_ok(r, "Open-Meteo")
+        if not ok:
+            r.close()
+            return None
         data = json.loads(r.text)
         r.close()
 
@@ -429,6 +479,11 @@ def fetch_remote_config():
 
     try:
         r      = urequests.get(secrets.GIST_URL, timeout=CONFIG_TIMEOUT_S)
+        ok, _code = _http_ok(r, "Remote config")
+        if not ok:
+            r.close()
+            print("Remote config: fetch rejected — using config.py defaults.")
+            return None
         config = json.loads(r.text)
         r.close()
         version = config.get("config_version", "?")
