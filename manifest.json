@@ -1,6 +1,6 @@
 {
-  "version": 21,
-  "notes": "Cloud HTTP hardening: check response status on every request (urequests does not raise on 401/403/404). InfluxDB writes no longer report success on a rejected write — a non-2xx now prints a warning and fires one ntfy alert per wake cycle ('InfluxDB write rejected ... check token'). ntfy send/poll, Open-Meteo, and Gist fetch now warn + degrade on non-2xx too.",
+  "version": 22,
+  "notes": "WebREPL re-enabled in boot.py (password from secrets.WEBREPL_PASS, falls back to 'irrigation'); new 'stay_awake' ntfy command keeps Pico awake 20 min with WebREPL live and sends IP via ntfy; 'sleep' command exits early. Allows Thonny to connect over WiFi without USB.",
   "base_url": "https://raw.githubusercontent.com/YesWebProject/smart-irrigation/main/",
   "files": [
     "main.py",

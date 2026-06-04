@@ -157,6 +157,43 @@ def _run_probe_test():
     print(msg)
 
 
+def _run_stay_awake(wlan):
+    """
+    Keep the Pico awake and WebREPL live for up to 20 minutes so Thonny can
+    connect over WiFi.  Called after Stage 14 (InfluxDB log) so all sensor
+    and watering work completes first; WiFi stays connected throughout.
+
+    Sends the device IP via ntfy so you know what to type in Thonny:
+        Run → Configure interpreter → MicroPython (WebREPL)
+        URL: ws://<IP>:8266   Password: WEBREPL_PASS from secrets.py
+
+    Send 'sleep' via ntfy to exit early, or just wait for the 20-min timeout.
+    """
+    ip = wlan.ifconfig()[0]
+    cloud.send_ntfy_alert(
+        f"Stay-awake: WebREPL active for 20 min. "
+        f"Thonny ws://{ip}:8266  pass=WEBREPL_PASS in secrets.py"
+    )
+    print(f"\n>>> STAY-AWAKE — WebREPL live at ws://{ip}:8266 <<<")
+    print("Send 'sleep' via ntfy to exit early, or wait 20 min.")
+
+    deadline = time.ticks_add(time.ticks_ms(), 20 * 60 * 1000)
+    while time.ticks_diff(deadline, time.ticks_ms()) > 0:
+        watchdog.feed()
+        remaining = time.ticks_diff(deadline, time.ticks_ms()) // 1000
+        print(f"Stay-awake: {remaining}s remaining — WebREPL active at ws://{ip}:8266")
+        # Poll ntfy for a 'sleep' command to exit early
+        cmds = cloud.check_ntfy_commands(35)
+        if "sleep" in cmds:
+            print("Stay-awake: 'sleep' command received — resuming normal sleep.")
+            cloud.send_ntfy_alert("Stay-awake ended by 'sleep' command.")
+            return
+        time.sleep(30)
+
+    print("Stay-awake: 20-minute timeout — resuming normal sleep.")
+    cloud.send_ntfy_alert("Stay-awake timeout — resuming normal operation.")
+
+
 # ── Stage 2: Watchdog ───────────────────────────────────────────────────────
 # Start the hardware watchdog now that basic boot succeeded.
 # It auto-resets the Pico if any later stage hangs for more than ~8 seconds.
@@ -308,11 +345,13 @@ if power.commands_accepted(tier):
     cancel     = "cancel"     in commands
     test       = "test"       in commands
     probe_test = "probe_test" in commands
+    stay_awake = "stay_awake" in commands
 else:
     print(f"Tier {tier}: commands ignored.")
     cancel     = False
     test       = False
     probe_test = False
+    stay_awake = False
 
 if cancel:
     water_now = False
@@ -593,6 +632,10 @@ if water_mm is not None:
 cloud.log_to_influx(log_data)
 watchdog.feed()
 
+# Stay-awake mode — runs after all logging so the cycle is complete first.
+# WiFi stays connected throughout so WebREPL remains accessible.
+if stay_awake:
+    _run_stay_awake(wlan)
 
 # ── Stage 15 & 16: Disconnect and sleep ─────────────────────────────────────
 

@@ -33,7 +33,7 @@ fetches weather data, and decides whether to water. All cloud services are fully
 | `cloud.py` | Pico + GitHub | NTP sync (3 retries), ntfy, InfluxDB, Open-Meteo, Gist fetch |
 | `watchdog.py` | Pico + GitHub | Hardware watchdog — 8 second timeout |
 | `ota.py` | Pico + GitHub | OTA update system |
-| `boot.py` | Pico + GitHub | Minimal — no WebREPL (removed) |
+| `boot.py` | Pico + GitHub | Starts WebREPL (password from secrets.WEBREPL_PASS); add that key to secrets.py |
 | `manifest.json` | GitHub only | OTA version manifest |
 | `irrigation_config.json` | GitHub + Gist | Reference copy of the live Gist runtime config — NOT fetched by the Pico (the Pico reads the Gist URL); update the live gist.github.com copy by hand |
 | `config.py` | Pico + PC only | Settings and calibration — NEVER in GitHub, NEVER OTA'd |
@@ -48,7 +48,7 @@ fetches weather data, and decides whether to water. All cloud services are fully
 - Protected files (NEVER overwritten by OTA): `config.py`, `secrets.py`, `state.bin`, `_ota_version`
 - `config.py` changes always need manual Thonny upload — plan accordingly
 
-**Current manifest version: 21**
+**Current manifest version: 22**
 
 ## Battery power tiers
 | Voltage | Tier | Sleep | Commands |
@@ -67,6 +67,8 @@ fetches weather data, and decides whether to water. All cloud services are fully
 | `cancel` | Clear a pending water_now |
 | `test` | 5-minute dense readings (15s interval) — for signal/sensor verification; reports a probe wet/dry summary |
 | `probe_test` | One-shot probe diagnostic — 5 pulse reads (force-reads even when the probe is disabled), replies with wet/dry tally + current water level for cross-check |
+| `stay_awake` | Keep Pico awake 20 min with WebREPL live; replies via ntfy with IP address for Thonny connection (`ws://<IP>:8266`) |
+| `sleep` | Exit a stay_awake session early and resume normal sleep |
 
 ## Persistent state (state.bin on Pico flash)
 11-byte binary file — survives deep sleep. Managed entirely by power.py.
