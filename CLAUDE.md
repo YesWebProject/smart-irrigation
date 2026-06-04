@@ -48,7 +48,7 @@ fetches weather data, and decides whether to water. All cloud services are fully
 - Protected files (NEVER overwritten by OTA): `config.py`, `secrets.py`, `state.bin`, `_ota_version`
 - `config.py` changes always need manual Thonny upload — plan accordingly
 
-**Current manifest version: 22**
+**Current manifest version: 23**
 
 ## Battery power tiers
 | Voltage | Tier | Sleep | Commands |
@@ -67,6 +67,7 @@ fetches weather data, and decides whether to water. All cloud services are fully
 | `cancel` | Clear a pending water_now |
 | `test` | 5-minute dense readings (15s interval) — for signal/sensor verification; reports a probe wet/dry summary |
 | `probe_test` | One-shot probe diagnostic — 5 pulse reads (force-reads even when the probe is disabled), replies with wet/dry tally + current water level for cross-check |
+| `status` | Immediate ntfy reply with hardware/config summary: battery V/tier/sleep, WiFi dBm, NTP, water level, probe, watered-today flag, pump config, commands received this wake |
 | `stay_awake` | Keep Pico awake 20 min with WebREPL live; replies via ntfy with IP address for Thonny connection (`ws://<IP>:8266`) |
 | `sleep` | Exit a stay_awake session early and resume normal sleep |
 

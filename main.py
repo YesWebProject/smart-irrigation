@@ -157,6 +157,72 @@ def _run_probe_test():
     print(msg)
 
 
+def _run_status(voltage, tier, rssi, time_synced,
+                water_pct, water_mm, probe_ok,
+                sleep_s, commands):
+    """
+    Send a concise hardware/config status reply via ntfy.
+    Triggered by the 'status' ntfy command. Fires during Stage 8 (before
+    weather fetch and watering decision) so the reply is fast.
+
+    Example reply:
+        Battery: 4.47V  Tier 1  (sleep 30 min)
+        WiFi: -66 dBm  NTP: OK
+        Water: 67% / 603mm  Probe: disabled (Gist)
+        Watered today: no  Post-water: off
+        Pump cutoff: 600mm (≈29%)  Base: 900s
+        Commands this wake: status, water_now
+    """
+    # Battery / power
+    sleep_min = sleep_s // 60
+    line1 = f"Battery: {voltage:.2f}V  Tier {tier}  (sleep {sleep_min} min)"
+
+    # WiFi / NTP
+    ntp_str = "OK" if time_synced else "FAILED"
+    line2 = f"WiFi: {rssi} dBm  NTP: {ntp_str}"
+
+    # Water level and probe
+    if water_pct is not None:
+        level_str = f"{water_pct:.0f}%"
+        if water_mm is not None:
+            level_str += f" / {water_mm}mm"
+    else:
+        level_str = "no reading"
+    if not getattr(config, "PROBE_SENSOR_ENABLED", True):
+        probe_str = "disabled (Gist)"
+    elif probe_ok is True:
+        probe_str = "wet"
+    elif probe_ok is False:
+        probe_str = "DRY"
+    else:
+        probe_str = "unknown"
+    line3 = f"Water: {level_str}  Probe: {probe_str}"
+
+    # Persistent state
+    watered_str = "yes" if power.get_watered_today() else "no"
+    post = power.get_post_water_cycles()
+    post_str = f"{post} cycles left" if post > 0 else "off"
+    line4 = f"Watered today: {watered_str}  Post-water: {post_str}"
+
+    # Config
+    cutoff_mm = getattr(config, "SENSOR_DISTANCE_PUMP_MM", 0)
+    if cutoff_mm and cutoff_mm > 0:
+        cutoff_str = f"{cutoff_mm}mm (approx {decisions.pump_cutoff_pct():.0f}%)"
+    else:
+        cutoff_str = f"{decisions.pump_cutoff_pct():.0f}%"
+    base_s = getattr(config, "WATERING_BASE_DURATION_S", 600)
+    line5 = f"Pump cutoff: {cutoff_str}  Base: {base_s}s"
+
+    # Commands received this cycle
+    other_cmds = [c for c in commands if c != "status"]
+    cmd_str = ", ".join(other_cmds) if other_cmds else "none"
+    line6 = f"Commands this wake: status" + (f", {cmd_str}" if other_cmds else "")
+
+    msg = "\n".join([line1, line2, line3, line4, line5, line6])
+    cloud.send_ntfy_alert(msg)
+    print(f"Status sent:\n{msg}")
+
+
 def _run_stay_awake(wlan):
     """
     Keep the Pico awake and WebREPL live for up to 20 minutes so Thonny can
@@ -346,12 +412,14 @@ if power.commands_accepted(tier):
     test       = "test"       in commands
     probe_test = "probe_test" in commands
     stay_awake = "stay_awake" in commands
+    status     = "status"     in commands
 else:
     print(f"Tier {tier}: commands ignored.")
     cancel     = False
     test       = False
     probe_test = False
     stay_awake = False
+    status     = False
 
 if cancel:
     water_now = False
@@ -363,6 +431,11 @@ if test:
 
 if probe_test:
     _run_probe_test()
+
+if status:
+    _run_status(voltage, tier, rssi, time_synced,
+                water_pct, water_mm, probe_ok,
+                sleep_s, commands)
 
 if snooze:
     power.set_watered_today(True)
