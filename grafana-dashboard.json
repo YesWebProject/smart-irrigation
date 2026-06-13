@@ -5,8 +5,8 @@
     "name": "dbkj779",
     "namespace": "stacks-1662876",
     "uid": "38571c2d-fb38-4ba3-a951-54a2a4acf113",
-    "resourceVersion": "2061560236153504207",
-    "generation": 3,
+    "resourceVersion": "2065024468668907886",
+    "generation": 27,
     "creationTimestamp": "2026-06-01T19:05:40Z",
     "labels": {
       "grafana.app/deprecatedInternalID": "3379569332736000"
@@ -16,7 +16,7 @@
       "grafana.app/folder": "",
       "grafana.app/saved-from-ui": "Grafana Cloud",
       "grafana.app/updatedBy": "user:ffmunuqar0c1se",
-      "grafana.app/updatedTimestamp": "2026-06-01T21:27:16Z"
+      "grafana.app/updatedTimestamp": "2026-06-11T10:52:54Z"
     }
   },
   "spec": {
@@ -82,7 +82,7 @@
           "vizConfig": {
             "kind": "VizConfig",
             "group": "stat",
-            "version": "13.1.0-26627248005",
+            "version": "13.1.0-27127308516",
             "spec": {
               "options": {
                 "colorMode": "background",
@@ -170,7 +170,7 @@
           "vizConfig": {
             "kind": "VizConfig",
             "group": "stat",
-            "version": "13.1.0-26627248005",
+            "version": "13.1.0-27127308516",
             "spec": {
               "options": {
                 "colorMode": "background",
@@ -281,7 +281,7 @@
           "vizConfig": {
             "kind": "VizConfig",
             "group": "stat",
-            "version": "13.1.0-26627248005",
+            "version": "13.1.0-27127308516",
             "spec": {
               "options": {
                 "colorMode": "background",
@@ -399,7 +399,7 @@
           "vizConfig": {
             "kind": "VizConfig",
             "group": "stat",
-            "version": "13.1.0-26627248005",
+            "version": "13.1.0-27127308516",
             "spec": {
               "options": {
                 "colorMode": "background",
@@ -485,7 +485,7 @@
           "vizConfig": {
             "kind": "VizConfig",
             "group": "stat",
-            "version": "13.1.0-26627248005",
+            "version": "13.1.0-27127308516",
             "spec": {
               "options": {
                 "colorMode": "background",
@@ -575,7 +575,7 @@
           "vizConfig": {
             "kind": "VizConfig",
             "group": "stat",
-            "version": "13.1.0-26627248005",
+            "version": "13.1.0-27127308516",
             "spec": {
               "options": {
                 "colorMode": "background",
@@ -661,7 +661,7 @@
           "vizConfig": {
             "kind": "VizConfig",
             "group": "stat",
-            "version": "13.1.0-26627248005",
+            "version": "13.1.0-27127308516",
             "spec": {
               "options": {
                 "colorMode": "background",
@@ -716,7 +716,7 @@
         "kind": "Panel",
         "spec": {
           "id": 62,
-          "title": "Forecast Rain Probability (Open-Meteo)",
+          "title": "Forecast Rain",
           "description": "Watering is skipped only when BOTH dashed limits are exceeded: rain probability ≥ red line AND forecast rainfall ≥ orange line. Limits track the Gist config.",
           "links": [],
           "data": {
@@ -821,7 +821,7 @@
           "vizConfig": {
             "kind": "VizConfig",
             "group": "timeseries",
-            "version": "13.1.0-26627248005",
+            "version": "13.1.0-27127308516",
             "spec": {
               "options": {
                 "annotations": {
@@ -837,7 +837,7 @@
                   "displayMode": "table",
                   "enableFacetedFilter": false,
                   "placement": "bottom",
-                  "showLegend": true
+                  "showLegend": false
                 },
                 "tooltip": {
                   "hideZeros": false,
@@ -855,13 +855,26 @@
                     "steps": [
                       {
                         "value": 0,
-                        "color": "blue"
+                        "color": "super-light-red"
+                      },
+                      {
+                        "value": 0,
+                        "color": "super-light-green"
+                      },
+                      {
+                        "value": 60,
+                        "color": "red"
+                      },
+                      {
+                        "value": 90,
+                        "color": "dark-red"
                       }
                     ]
                   },
                   "color": {
                     "mode": "fixed",
-                    "fixedColor": "blue"
+                    "fixedColor": "semi-dark-red",
+                    "seriesBy": "last"
                   },
                   "custom": {
                     "axisBorderShow": false,
@@ -872,15 +885,15 @@
                     "barAlignment": 0,
                     "barWidthFactor": 0.6,
                     "drawStyle": "line",
-                    "fillOpacity": 38,
-                    "gradientMode": "opacity",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
                     "hideFrom": {
                       "legend": false,
                       "tooltip": false,
                       "viz": false
                     },
                     "insertNulls": false,
-                    "lineInterpolation": "stepAfter",
+                    "lineInterpolation": "smooth",
                     "lineWidth": 2,
                     "pointSize": 5,
                     "scaleDistribution": {
@@ -944,7 +957,31 @@
                         "id": "color",
                         "value": {
                           "fixedColor": "dark-blue",
-                          "mode": "fixed"
+                          "mode": "shades"
+                        }
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 60
+                      },
+                      {
+                        "id": "custom.gradientMode",
+                        "value": "opacity"
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "color": "green",
+                              "value": 0
+                            },
+                            {
+                              "color": "red",
+                              "value": 80
+                            }
+                          ]
                         }
                       }
                     ]
@@ -957,7 +994,7 @@
                     "properties": [
                       {
                         "id": "displayName",
-                        "value": "Actual rain (yesterday)"
+                        "value": "Actual Rainfall"
                       },
                       {
                         "id": "unit",
@@ -984,6 +1021,28 @@
                           "fixedColor": "green",
                           "mode": "fixed"
                         }
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "dash": [
+                            10,
+                            10
+                          ],
+                          "fill": "dash"
+                        }
+                      },
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 2
+                      },
+                      {
+                        "id": "custom.showPoints",
+                        "value": "always"
+                      },
+                      {
+                        "id": "custom.lineInterpolation",
+                        "value": "stepAfter"
                       }
                     ]
                   },
@@ -1008,10 +1067,10 @@
                         "id": "custom.lineStyle",
                         "value": {
                           "dash": [
-                            8,
-                            4
+                            0,
+                            10
                           ],
-                          "fill": "dash"
+                          "fill": "dot"
                         }
                       },
                       {
@@ -1051,9 +1110,16 @@
                         "value": "Rainfall (mm)"
                       },
                       {
+                        "id": "min",
+                        "value": 0
+                      },
+                      {
+                        "id": "max"
+                      },
+                      {
                         "id": "color",
                         "value": {
-                          "fixedColor": "orange",
+                          "fixedColor": "dark-blue",
                           "mode": "fixed"
                         }
                       },
@@ -1061,10 +1127,10 @@
                         "id": "custom.lineStyle",
                         "value": {
                           "dash": [
-                            8,
-                            4
+                            0,
+                            10
                           ],
-                          "fill": "dash"
+                          "fill": "dot"
                         }
                       },
                       {
@@ -1091,7 +1157,7 @@
         "kind": "Panel",
         "spec": {
           "id": 63,
-          "title": "Forecast Temperature Max / Min (Open-Meteo)",
+          "title": "Forecast Temperature",
           "description": "Dashed horizontal lines mark the Gist temp_scaling brackets — each label is the watering-duration multiplier applied at or below that temperature. Line positions track the Gist; labels are static.",
           "links": [],
           "data": {
@@ -1268,7 +1334,7 @@
           "vizConfig": {
             "kind": "VizConfig",
             "group": "timeseries",
-            "version": "13.1.0-26627248005",
+            "version": "13.1.0-27127308516",
             "spec": {
               "options": {
                 "annotations": {
@@ -1284,7 +1350,7 @@
                   "displayMode": "table",
                   "enableFacetedFilter": false,
                   "placement": "bottom",
-                  "showLegend": true
+                  "showLegend": false
                 },
                 "tooltip": {
                   "hideZeros": false,
@@ -1322,7 +1388,8 @@
                     ]
                   },
                   "color": {
-                    "mode": "thresholds"
+                    "mode": "fixed",
+                    "fixedColor": "red"
                   },
                   "custom": {
                     "axisBorderShow": false,
@@ -1333,8 +1400,8 @@
                     "barAlignment": 0,
                     "barWidthFactor": 0.6,
                     "drawStyle": "line",
-                    "fillOpacity": 20,
-                    "gradientMode": "opacity",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
                     "hideFrom": {
                       "legend": false,
                       "tooltip": false,
@@ -1342,6 +1409,9 @@
                     },
                     "insertNulls": false,
                     "lineInterpolation": "smooth",
+                    "lineStyle": {
+                      "fill": "solid"
+                    },
                     "lineWidth": 2,
                     "pointSize": 5,
                     "scaleDistribution": {
@@ -1376,6 +1446,35 @@
                           "fixedColor": "purple",
                           "mode": "fixed"
                         }
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "dash": [
+                            10,
+                            10
+                          ],
+                          "fill": "dash"
+                        }
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 0
+                      },
+                      {
+                        "id": "custom.gradientMode",
+                        "value": "opacity"
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "green",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.lineInterpolation",
+                        "value": "stepAfter"
                       }
                     ]
                   },
@@ -1395,11 +1494,7 @@
                       {
                         "id": "custom.lineStyle",
                         "value": {
-                          "dash": [
-                            8,
-                            4
-                          ],
-                          "fill": "dash"
+                          "fill": "solid"
                         }
                       },
                       {
@@ -1414,12 +1509,39 @@
                       "options": "temp_bracket_1_c"
                     },
                     "properties": [
-                      { "id": "displayName", "value": "×0.0 (≤5°, frost)" },
-                      { "id": "color", "value": { "fixedColor": "dark-blue", "mode": "fixed" } },
-                      { "id": "custom.lineStyle", "value": { "dash": [ 4, 4 ], "fill": "dash" } },
-                      { "id": "custom.lineWidth", "value": 1 },
-                      { "id": "custom.fillOpacity", "value": 0 },
-                      { "id": "custom.spanNulls", "value": true }
+                      {
+                        "id": "displayName",
+                        "value": "×0.0 (≤5°, frost)"
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "dark-blue",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "dash": [
+                            0,
+                            10
+                          ],
+                          "fill": "dot"
+                        }
+                      },
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 0
+                      },
+                      {
+                        "id": "custom.spanNulls",
+                        "value": true
+                      }
                     ]
                   },
                   {
@@ -1428,12 +1550,39 @@
                       "options": "temp_bracket_2_c"
                     },
                     "properties": [
-                      { "id": "displayName", "value": "×0.5" },
-                      { "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } },
-                      { "id": "custom.lineStyle", "value": { "dash": [ 4, 4 ], "fill": "dash" } },
-                      { "id": "custom.lineWidth", "value": 1 },
-                      { "id": "custom.fillOpacity", "value": 0 },
-                      { "id": "custom.spanNulls", "value": true }
+                      {
+                        "id": "displayName",
+                        "value": "×0.5"
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "blue",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "dash": [
+                            0,
+                            10
+                          ],
+                          "fill": "dot"
+                        }
+                      },
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 0
+                      },
+                      {
+                        "id": "custom.spanNulls",
+                        "value": true
+                      }
                     ]
                   },
                   {
@@ -1442,12 +1591,39 @@
                       "options": "temp_bracket_3_c"
                     },
                     "properties": [
-                      { "id": "displayName", "value": "×1.0 (base)" },
-                      { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } },
-                      { "id": "custom.lineStyle", "value": { "dash": [ 4, 4 ], "fill": "dash" } },
-                      { "id": "custom.lineWidth", "value": 1 },
-                      { "id": "custom.fillOpacity", "value": 0 },
-                      { "id": "custom.spanNulls", "value": true }
+                      {
+                        "id": "displayName",
+                        "value": "×1.0 (base)"
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "green",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "dash": [
+                            0,
+                            10
+                          ],
+                          "fill": "dot"
+                        }
+                      },
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 0
+                      },
+                      {
+                        "id": "custom.spanNulls",
+                        "value": true
+                      }
                     ]
                   },
                   {
@@ -1456,12 +1632,39 @@
                       "options": "temp_bracket_4_c"
                     },
                     "properties": [
-                      { "id": "displayName", "value": "×1.4" },
-                      { "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } },
-                      { "id": "custom.lineStyle", "value": { "dash": [ 4, 4 ], "fill": "dash" } },
-                      { "id": "custom.lineWidth", "value": 1 },
-                      { "id": "custom.fillOpacity", "value": 0 },
-                      { "id": "custom.spanNulls", "value": true }
+                      {
+                        "id": "displayName",
+                        "value": "×1.4"
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "yellow",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "dash": [
+                            0,
+                            10
+                          ],
+                          "fill": "dot"
+                        }
+                      },
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 0
+                      },
+                      {
+                        "id": "custom.spanNulls",
+                        "value": true
+                      }
                     ]
                   },
                   {
@@ -1470,12 +1673,39 @@
                       "options": "temp_bracket_5_c"
                     },
                     "properties": [
-                      { "id": "displayName", "value": "×1.6" },
-                      { "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } },
-                      { "id": "custom.lineStyle", "value": { "dash": [ 4, 4 ], "fill": "dash" } },
-                      { "id": "custom.lineWidth", "value": 1 },
-                      { "id": "custom.fillOpacity", "value": 0 },
-                      { "id": "custom.spanNulls", "value": true }
+                      {
+                        "id": "displayName",
+                        "value": "×1.6"
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "orange",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "dash": [
+                            0,
+                            10
+                          ],
+                          "fill": "dot"
+                        }
+                      },
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 0
+                      },
+                      {
+                        "id": "custom.spanNulls",
+                        "value": true
+                      }
                     ]
                   },
                   {
@@ -1484,12 +1714,39 @@
                       "options": "temp_bracket_6_c"
                     },
                     "properties": [
-                      { "id": "displayName", "value": "×1.8 (×2.0 above)" },
-                      { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } },
-                      { "id": "custom.lineStyle", "value": { "dash": [ 4, 4 ], "fill": "dash" } },
-                      { "id": "custom.lineWidth", "value": 1 },
-                      { "id": "custom.fillOpacity", "value": 0 },
-                      { "id": "custom.spanNulls", "value": true }
+                      {
+                        "id": "displayName",
+                        "value": "×1.8 (×2.0 above)"
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "red",
+                          "mode": "fixed"
+                        }
+                      },
+                      {
+                        "id": "custom.lineStyle",
+                        "value": {
+                          "dash": [
+                            0,
+                            10
+                          ],
+                          "fill": "dot"
+                        }
+                      },
+                      {
+                        "id": "custom.lineWidth",
+                        "value": 1
+                      },
+                      {
+                        "id": "custom.fillOpacity",
+                        "value": 0
+                      },
+                      {
+                        "id": "custom.spanNulls",
+                        "value": true
+                      }
                     ]
                   }
                 ]
@@ -1540,7 +1797,7 @@
           "vizConfig": {
             "kind": "VizConfig",
             "group": "timeseries",
-            "version": "13.1.0-26627248005",
+            "version": "13.1.0-27127308516",
             "spec": {
               "options": {
                 "annotations": {
@@ -1602,7 +1859,7 @@
                     "scaleDistribution": {
                       "type": "linear"
                     },
-                    "showPoints": "always",
+                    "showPoints": "never",
                     "showValues": false,
                     "spanNulls": false,
                     "stacking": {
@@ -1711,7 +1968,7 @@
           "vizConfig": {
             "kind": "VizConfig",
             "group": "timeseries",
-            "version": "13.1.0-26627248005",
+            "version": "13.1.0-27127308516",
             "spec": {
               "options": {
                 "annotations": {
@@ -1969,7 +2226,7 @@
           "vizConfig": {
             "kind": "VizConfig",
             "group": "timeseries",
-            "version": "13.1.0-26627248005",
+            "version": "13.1.0-27127308516",
             "spec": {
               "options": {
                 "annotations": {
@@ -2100,7 +2357,7 @@
           "vizConfig": {
             "kind": "VizConfig",
             "group": "timeseries",
-            "version": "13.1.0-26627248005",
+            "version": "13.1.0-27127308516",
             "spec": {
               "options": {
                 "annotations": {
@@ -2116,7 +2373,7 @@
                   "displayMode": "table",
                   "enableFacetedFilter": false,
                   "placement": "bottom",
-                  "showLegend": true
+                  "showLegend": false
                 },
                 "tooltip": {
                   "hideZeros": false,
@@ -2137,19 +2394,20 @@
                         "color": "red"
                       },
                       {
-                        "value": 15,
+                        "value": 11,
                         "color": "orange"
                       },
                       {
-                        "value": 40,
-                        "color": "green"
+                        "value": 15,
+                        "color": "blue"
                       }
                     ]
                   },
                   "color": {
-                    "mode": "fixed",
+                    "mode": "thresholds",
                     "fixedColor": "blue"
                   },
+                  "noValue": "-",
                   "custom": {
                     "axisBorderShow": false,
                     "axisCenteredZero": false,
@@ -2175,13 +2433,13 @@
                     },
                     "showPoints": "never",
                     "showValues": false,
-                    "spanNulls": false,
+                    "spanNulls": true,
                     "stacking": {
                       "group": "A",
                       "mode": "none"
                     },
                     "thresholdsStyle": {
-                      "mode": "line+area"
+                      "mode": "off"
                     }
                   }
                 },
@@ -2228,7 +2486,7 @@
           "vizConfig": {
             "kind": "VizConfig",
             "group": "timeseries",
-            "version": "13.1.0-26627248005",
+            "version": "13.1.0-27127308516",
             "spec": {
               "options": {
                 "annotations": {
@@ -2244,7 +2502,7 @@
                   "displayMode": "table",
                   "enableFacetedFilter": false,
                   "placement": "bottom",
-                  "showLegend": true
+                  "showLegend": false
                 },
                 "tooltip": {
                   "hideZeros": false,
@@ -2313,7 +2571,7 @@
                       "mode": "none"
                     },
                     "thresholdsStyle": {
-                      "mode": "line"
+                      "mode": "area"
                     }
                   }
                 },
@@ -2360,11 +2618,12 @@
           "vizConfig": {
             "kind": "VizConfig",
             "group": "table",
-            "version": "13.1.0-26627248005",
+            "version": "13.1.0-27127308516",
             "spec": {
               "options": {
                 "cellHeight": "sm",
                 "enablePagination": true,
+                "frameIndex": 1,
                 "showHeader": true,
                 "sortBy": [
                   {
@@ -2810,6 +3069,7 @@
         "1d"
       ],
       "hideTimepicker": false,
+      "weekStart": "monday",
       "fiscalYearStartMonth": 0
     },
     "title": "Smart Solar Irrigation",
