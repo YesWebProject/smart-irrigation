@@ -13,7 +13,9 @@
 # used instead. state.bin persists across deep sleep and power cycles.
 #   Byte 0:    battery tier from last wake (1-4, 0 = first boot)
 #   Byte 1:    watered today flag (0 = no, 1 = yes) — written by decisions.py
-#   Bytes 2-5: RESERVED (kept for layout compatibility)
+#   Byte 2:    consecutive watering-or-rain days (rest-day over-watering guard)
+#   Byte 3:    rest days remaining (rest-day over-watering guard)
+#   Bytes 4-5: RESERVED (kept for layout compatibility)
 #   Bytes 6-9: today's sunrise as unix timestamp uint32 — written by cloud.py
 #   Byte 10:   post-water fast monitoring cycles remaining (0 = normal sleep)
 #
@@ -45,7 +47,9 @@ _STATE_FILE       = "state.bin"
 _STATE_SIZE       = 11   # total bytes in state file
 _IDX_TIER         = 0    # byte 0:  last battery tier
 _IDX_WATERED      = 1    # byte 1:  watered today flag
-_IDX_PRESSURE     = 2    # bytes 2-5: reserved
+_IDX_CONSEC_DAYS  = 2    # byte 2:  consecutive watering-or-rain days (rest guard)
+_IDX_SKIP_DAYS    = 3    # byte 3:  rest days remaining (rest guard)
+_IDX_RESERVED     = 4    # bytes 4-5: reserved
 _IDX_SUNRISE      = 6    # bytes 6-9: sunrise unix timestamp (uint32)
 _IDX_POST_WATER   = 10   # byte 10: post-water fast cycles remaining
 
@@ -131,6 +135,35 @@ def set_post_water_cycles(count):
     """
     mem = _read_rtc()
     mem[_IDX_POST_WATER] = max(0, int(count))
+    _write_rtc(mem)
+
+
+# ---------------------------------------------------------------------------
+# Rest-day over-watering guard counters
+# ---------------------------------------------------------------------------
+# Two day-granularity counters, finalised once per day at the new-day rollover
+# in main.py. See the rest-day logic there and the skip in decisions.check_watering.
+def get_consecutive_water_days():
+    """Return the running count of consecutive days that received water or rain."""
+    return _read_rtc()[_IDX_CONSEC_DAYS]
+
+
+def set_consecutive_water_days(count):
+    """Set the consecutive watering-or-rain day counter (clamped to a byte)."""
+    mem = _read_rtc()
+    mem[_IDX_CONSEC_DAYS] = max(0, min(255, int(count)))
+    _write_rtc(mem)
+
+
+def get_skip_days_remaining():
+    """Return the number of forced rest days still to be taken (0 = none)."""
+    return _read_rtc()[_IDX_SKIP_DAYS]
+
+
+def set_skip_days_remaining(count):
+    """Set the forced-rest-days-remaining counter (clamped to a byte)."""
+    mem = _read_rtc()
+    mem[_IDX_SKIP_DAYS] = max(0, min(255, int(count)))
     _write_rtc(mem)
 
 

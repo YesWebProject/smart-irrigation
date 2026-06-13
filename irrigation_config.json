@@ -8,6 +8,8 @@
     "rain_amount_threshold_mm": 5.0,
     "pump_min_runtime_for_check_s": 120,
     "pump_min_drop_mm": 30,
+    "rest_after_consecutive_days": 3,
+    "rest_duration_days": 1,
     "temp_scaling": [
       { "below_c": 5,  "multiplier": 0.0 },
       { "below_c": 12, "multiplier": 0.5 },

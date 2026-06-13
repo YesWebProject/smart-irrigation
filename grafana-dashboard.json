@@ -2680,6 +2680,16 @@
                           },
                           {
                             "options": {
+                              "rest_day": {
+                                "color": "purple",
+                                "index": 8,
+                                "text": "💤 Rest day"
+                              }
+                            },
+                            "type": "value"
+                          },
+                          {
+                            "options": {
                               "low_battery": {
                                 "color": "red",
                                 "index": 1,

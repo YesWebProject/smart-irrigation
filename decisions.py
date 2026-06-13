@@ -162,8 +162,8 @@ def check_watering(weather, sensors, battery_v, tier):
         should_water — True or False
         duration_s   — seconds to run pump (0 if not watering)
         skip_reason  — string logged to InfluxDB:
-                       "none" | "already_watered" | "low_battery" | "empty_butt" |
-                       "frost" | "no_weather_data" | "rain" | "not_time"
+                       "none" | "already_watered" | "rest_day" | "low_battery" |
+                       "empty_butt" | "frost" | "no_weather_data" | "rain" | "not_time"
         decision_ctx — dict of the factors behind a WATER decision (for the ntfy
                        notification), or None when not watering. Keys:
                        temp_c, multiplier, base_duration_s, duration_s,
@@ -184,6 +184,15 @@ def check_watering(weather, sensors, battery_v, tier):
     if power.get_watered_today():
         print("Decision: skip — already watered today.")
         return False, 0, "already_watered", None
+
+    # --- Condition 1b: Forced rest day? (over-watering guard) ---
+    # After a run of consecutive watering-or-rain days the rollover in main.py sets
+    # a rest counter; skip watering while it's positive. Feature off when AFTER_DAYS <= 0.
+    rest_after = getattr(_cfg, "WATER_REST_AFTER_DAYS", 3)
+    if rest_after > 0 and power.get_skip_days_remaining() > 0:
+        print(f"Decision: skip — rest day ({power.get_skip_days_remaining()} left after "
+              f"{rest_after} consecutive watering days).")
+        return False, 0, "rest_day", None
 
     # --- Condition 2: Battery too low? ---
     if tier >= 3:

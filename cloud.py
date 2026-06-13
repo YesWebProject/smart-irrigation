@@ -390,6 +390,8 @@ def apply_remote_config(remote_cfg):
     _set("RAIN_SKIP_AMOUNT_MM",            w.get("rain_amount_threshold_mm", 5.0))
     _set("PUMP_MIN_RUNTIME_FOR_CHECK_S",   w.get("pump_min_runtime_for_check_s"))
     _set("PUMP_MIN_DROP_MM",               w.get("pump_min_drop_mm"))
+    _set("WATER_REST_AFTER_DAYS",          w.get("rest_after_consecutive_days"))
+    _set("WATER_REST_DURATION_DAYS",       w.get("rest_duration_days"))
 
     # Temperature scaling (list of {below_c/above_c, multiplier} dicts → list of tuples)
     ts = w.get("temp_scaling")

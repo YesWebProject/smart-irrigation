@@ -48,7 +48,7 @@ fetches weather data, and decides whether to water. All cloud services are fully
 - Protected files (NEVER overwritten by OTA): `config.py`, `secrets.py`, `state.bin`, `_ota_version`
 - `config.py` changes always need manual Thonny upload — plan accordingly
 
-**Current manifest version: 23**
+**Current manifest version: 24**
 
 ## Battery power tiers
 | Voltage | Tier | Sleep | Commands |
@@ -75,13 +75,16 @@ fetches weather data, and decides whether to water. All cloud services are fully
 11-byte binary file — survives deep sleep. Managed entirely by power.py.
 - Byte 0: last battery tier
 - Byte 1: watered today flag
-- Bytes 2-5: reserved
+- Byte 2: consecutive watering-or-rain days (rest-day guard)
+- Byte 3: rest days remaining (rest-day guard)
+- Bytes 4-5: reserved
 - Bytes 6-9: today's sunrise unix timestamp
 - Byte 10: post-water fast monitoring cycles remaining
 
 ## Watering logic
 - Triggers once per day, 30 minutes before sunrise (configurable via Gist)
-- Skips if: already watered today, rain skip (≥60% probability AND ≥5mm predicted), frost forecast, probe dry (unless probe disabled via Gist), water level at/below the pump cutoff (set by `sensor_distance_pump_mm`, else `pump_cutoff_pct` default 5%), battery Tier 3+
+- Skips if: already watered today, rest day (over-watering guard, see below), rain skip (≥60% probability AND ≥5mm predicted), frost forecast, probe dry (unless probe disabled via Gist), water level at/below the pump cutoff (set by `sensor_distance_pump_mm`, else `pump_cutoff_pct` default 5%), battery Tier 3+
+- Over-watering guard: after `rest_after_consecutive_days` (default 3) days in a row that received water OR significant actual rainfall (≥ the rain-skip amount, ~5mm), watering is skipped for `rest_duration_days` (default 1). Streak is finalised once per day at the new-day rollover (uses yesterday's actual rainfall); set `rest_after_consecutive_days` to 0 to disable. Logged skip reason: `rest_day`.
 - Offline backup: if WiFi fails, uses stored sunrise + RTC time to water at base duration
 - All thresholds overridable via GitHub Gist without code changes — and as of v14 the
   overrides are actually applied at runtime (every module reads Gist-overridable constants via
@@ -95,6 +98,8 @@ hand; the Pico reads the live gist, not the repo file.
 Key fields: `watering.base_duration_s`, `watering.sunrise_offset_min`,
 `watering.rain_probability_threshold_pct`, `watering.rain_amount_threshold_mm`,
 `watering.pump_min_runtime_for_check_s`, `watering.pump_min_drop_mm`,
+`watering.rest_after_consecutive_days` (consecutive watering/rain days before a forced rest, 0 disables),
+`watering.rest_duration_days` (how many days to skip after the streak),
 `water_level.sensor_distance_empty_mm`, `water_level.sensor_distance_full_mm`,
 `water_level.sensor_distance_pump_mm` (measured sensor distance at the pump intake — sets the
 dry-run safety cutoff directly; takes precedence over `pump_cutoff_pct` when >0, 0 = use the %),

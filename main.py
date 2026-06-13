@@ -169,7 +169,7 @@ def _run_status(voltage, tier, rssi, time_synced,
         Battery: 4.47V  Tier 1  (sleep 30 min)
         WiFi: -66 dBm  NTP: OK
         Water: 67% / 603mm  Probe: disabled (Gist)
-        Watered today: no  Post-water: off
+        Watered today: no  Post-water: off  Rest: streak 2/3
         Pump cutoff: 600mm (≈29%)  Base: 900s
         Commands this wake: status, water_now
     """
@@ -202,7 +202,14 @@ def _run_status(voltage, tier, rssi, time_synced,
     watered_str = "yes" if power.get_watered_today() else "no"
     post = power.get_post_water_cycles()
     post_str = f"{post} cycles left" if post > 0 else "off"
-    line4 = f"Watered today: {watered_str}  Post-water: {post_str}"
+    rest_after = getattr(config, "WATER_REST_AFTER_DAYS", 3)
+    rest_left  = power.get_skip_days_remaining()
+    if rest_after > 0:
+        rest_str = (f"{rest_left} day(s) left" if rest_left > 0
+                    else f"streak {power.get_consecutive_water_days()}/{rest_after}")
+    else:
+        rest_str = "off"
+    line4 = f"Watered today: {watered_str}  Post-water: {post_str}  Rest: {rest_str}"
 
     # Config
     cutoff_mm = getattr(config, "SENSOR_DISTANCE_PUMP_MM", 0)
@@ -458,6 +465,41 @@ if weather is not None and time_valid:
     old_sunrise = power.get_sunrise_unix()
     if new_sunrise and new_sunrise != old_sunrise:
         print("New day — resetting watered flag.")
+
+        # ── Rest-day over-watering guard — finalise the day that just ended ──
+        # Done once per day at rollover, BEFORE the watered flag is reset, so we can
+        # read yesterday's watering. A day "counts" if it was watered OR it actually
+        # rained over the rain-skip amount (actual rainfall preferred over forecast).
+        # After WATER_REST_AFTER_DAYS counted days in a row, skip WATER_REST_DURATION_DAYS.
+        rest_after = int(getattr(config, "WATER_REST_AFTER_DAYS", 3))
+        rest_dur   = int(getattr(config, "WATER_REST_DURATION_DAYS", 1))
+        if rest_after > 0:
+            rain_amt_threshold = float(getattr(config, "RAIN_SKIP_AMOUNT_MM", 5.0))
+            yest_rain    = weather.get("actual_rain_mm")
+            rain_counted = yest_rain is not None and yest_rain >= rain_amt_threshold
+            counted_day  = power.get_watered_today() or rain_counted
+
+            consec = power.get_consecutive_water_days()
+            rest   = power.get_skip_days_remaining()
+            if rest > 0:
+                rest -= 1                       # yesterday was a rest day — consume it
+            elif counted_day:
+                consec += 1
+                if consec >= rest_after:
+                    rest   = rest_dur           # streak reached — schedule the rest
+                    consec = 0
+            else:
+                consec = 0                      # dry, un-watered day broke the streak
+            power.set_consecutive_water_days(consec)
+            power.set_skip_days_remaining(rest)
+            print(f"Rest accounting: counted={counted_day} streak={consec}/{rest_after} "
+                  f"rest_left={rest}")
+        else:
+            # Feature disabled — keep counters clean so re-enabling starts fresh.
+            if power.get_consecutive_water_days() or power.get_skip_days_remaining():
+                power.set_consecutive_water_days(0)
+                power.set_skip_days_remaining(0)
+
         power.set_watered_today(False)
         power.save_sunrise_unix(new_sunrise)
 
@@ -663,6 +705,9 @@ log_data = {
     "probe_sensor_ok":         probe_ok if probe_ok is not None else True,
     "probe_sensor_enabled":    getattr(config, "PROBE_SENSOR_ENABLED", True),
     "time_synced":             time_synced,
+    # Rest-day over-watering guard counters — for visibility in Grafana / status
+    "consecutive_water_days":  power.get_consecutive_water_days(),
+    "rest_days_remaining":     power.get_skip_days_remaining(),
     # Calibration reference values (post-Gist override) — used for Grafana reference lines
     "sensor_distance_full_mm":  config.SENSOR_DISTANCE_FULL_MM,
     "sensor_distance_empty_mm": config.SENSOR_DISTANCE_EMPTY_MM,

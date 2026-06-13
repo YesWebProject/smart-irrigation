@@ -48,6 +48,12 @@ WATERING_SUNRISE_OFFSET_M = -30      # minutes before sunrise (negative = before
 WATERING_WINDOW_M         = 10       # ± window around target time to trigger
 RAIN_SKIP_THRESHOLD_PCT   = 60       # skip if rain probability >= this
 
+# Over-watering guard: after WATER_REST_AFTER_DAYS consecutive days that received
+# water (pump ran) or significant actual rainfall (>= the rain-skip amount, ~5mm),
+# skip watering for WATER_REST_DURATION_DAYS days. Set WATER_REST_AFTER_DAYS = 0 to disable.
+WATER_REST_AFTER_DAYS     = 3        # consecutive watering days that trigger a rest
+WATER_REST_DURATION_DAYS  = 1        # days to skip after the streak
+
 # Temperature scaling — multiplier applied to base duration
 # List of (max_temp_c, multiplier) tuples, evaluated top to bottom.
 # Last entry is the catch-all for anything above the previous threshold.
