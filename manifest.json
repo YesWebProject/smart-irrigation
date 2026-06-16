@@ -1,6 +1,6 @@
 {
-  "version": 24,
-  "notes": "Over-watering guard: after WATER_REST_AFTER_DAYS consecutive days that received water OR significant actual rainfall (>= rain-skip amount), skip WATER_REST_DURATION_DAYS days (defaults 3 -> 1, Gist-configurable via watering.rest_after_consecutive_days / rest_duration_days; 0 disables). Streak finalised once/day at the new-day rollover using state.bin bytes 2-3; new skip_reason 'rest_day'; counters logged + shown in 'status'.",
+  "version": 25,
+  "notes": "Resilient time-keeping on weak WiFi: save the expected wake time before deep sleep and restore an approximate clock on boot (RP2350 RTC does not survive deepsleep), so watering works without a fresh NTP sync every cycle. sync_time now bounds each attempt (ntptime.timeout), rotates NTP hosts, and feeds the watchdog between retries. The 'time unknown' alert is deduped to once per outage (state.bin byte 4) instead of every wake. state.bin grows 11->15 bytes (graceful migration preserves existing counters).",
   "base_url": "https://raw.githubusercontent.com/YesWebProject/smart-irrigation/main/",
   "files": [
     "main.py",

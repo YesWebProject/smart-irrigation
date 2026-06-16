@@ -48,7 +48,7 @@ fetches weather data, and decides whether to water. All cloud services are fully
 - Protected files (NEVER overwritten by OTA): `config.py`, `secrets.py`, `state.bin`, `_ota_version`
 - `config.py` changes always need manual Thonny upload — plan accordingly
 
-**Current manifest version: 24**
+**Current manifest version: 25**
 
 ## Battery power tiers
 | Voltage | Tier | Sleep | Commands |
@@ -72,14 +72,17 @@ fetches weather data, and decides whether to water. All cloud services are fully
 | `sleep` | Exit a stay_awake session early and resume normal sleep |
 
 ## Persistent state (state.bin on Pico flash)
-11-byte binary file — survives deep sleep. Managed entirely by power.py.
+15-byte binary file — survives deep sleep. Managed entirely by power.py.
+A shorter legacy file is migrated up in place (existing bytes preserved).
 - Byte 0: last battery tier
 - Byte 1: watered today flag
 - Byte 2: consecutive watering-or-rain days (rest-day guard)
 - Byte 3: rest days remaining (rest-day guard)
-- Bytes 4-5: reserved
+- Byte 4: time-unknown alert sent flag (dedup, cleared when time recovers)
+- Byte 5: reserved
 - Bytes 6-9: today's sunrise unix timestamp
 - Byte 10: post-water fast monitoring cycles remaining
+- Bytes 11-14: saved wake time unix timestamp (approximate clock, restored on boot)
 
 ## Watering logic
 - Triggers once per day, 30 minutes before sunrise (configurable via Gist)
@@ -111,7 +114,11 @@ low-conductivity rainwater causes false DRY readings)
 - Battery voltage reads ~0.3V high when USB is connected (AnseTo charging)
 - A02YYUW gets condensation on face (water butt humidity) — median filter in hardware.py rejects single bad readings
 - WiFi signal: -76 dBm (marginal but workable via extender)
-- NTP sync: retries 3 times with 2s delay — occasional failures normal at this signal level
+- NTP sync: hardened for weak signal — each attempt bounded by `NTP_TIMEOUT_S` (2s), rotates through
+  `NTP_HOSTS`, retries `NTP_RETRIES` (4) times feeding the watchdog between attempts. Occasional
+  failures are harmless: the clock is saved before sleep and restored (approximately) on boot, so
+  watering still runs without NTP. The "time unknown" alert fires once per outage, not every wake.
+  As of v25 the RP2350 RTC is assumed NOT to survive deep sleep (hence the save/restore).
 - Probe (GP14) corrodes from DC bias through water. As of v18 it is pulse-powered (pull-up on ~1ms
   per read, idle high-Z) and is only energised in normal cycles when `PROBE_SENSOR_ENABLED` is true.
   Diagnostics (`test`, `probe_test`) force-read it regardless, to check it while installed.

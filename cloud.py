@@ -56,24 +56,51 @@ def _http_ok(r, label):
 # ---------------------------------------------------------------------------
 # Time sync
 # ---------------------------------------------------------------------------
-def sync_time(retries=3, delay_s=0.5):
+def sync_time(retries=None, delay_s=1, feed=None):
     """
     Sync the Pico's internal clock from NTP.
     Call this once after WiFi connects, before anything that needs timestamps.
     Returns True on success, False on failure.
+
+    Hardened for weak WiFi:
+      - each attempt is bounded by ntptime.timeout so a slow request can't hang
+        long enough to trip the 8 s watchdog
+      - attempts rotate through several NTP hosts (one bad server won't block sync)
+      - feed (a callable, e.g. watchdog.feed) is called between attempts so a run
+        of retries doesn't trigger a watchdog reset
+
+    A failed sync is not fatal: main.py restores an approximate clock from the
+    last wake so watering still works — NTP just corrects the drift when it can.
     """
+    if feed is None:
+        feed = lambda: None
+    if retries is None:
+        retries = getattr(_cfg, "NTP_RETRIES", 4)
+    hosts = getattr(_cfg, "NTP_HOSTS", ["pool.ntp.org", "time.google.com", "time.cloudflare.com"])
+
+    # Bound each request. ntptime.timeout exists in MicroPython 1.20+ (v1.28 here);
+    # guard the assignment so an older build can't crash on a missing attribute.
+    try:
+        ntptime.timeout = getattr(_cfg, "NTP_TIMEOUT_S", 2)
+    except Exception:
+        pass
+
     for attempt in range(1, retries + 1):
+        host = hosts[(attempt - 1) % len(hosts)]
         try:
+            ntptime.host = host
             ntptime.settime()
             t = time.localtime()
-            print(f"Time synced: {t[0]}-{t[1]:02d}-{t[2]:02d} {t[3]:02d}:{t[4]:02d} UTC")
+            print(f"Time synced via {host}: {t[0]}-{t[1]:02d}-{t[2]:02d} {t[3]:02d}:{t[4]:02d} UTC")
             return True
         except Exception as e:
+            feed()
             if attempt < retries:
-                print(f"NTP sync attempt {attempt} failed — retrying")
+                print(f"NTP sync attempt {attempt} ({host}) failed — retrying")
                 time.sleep(delay_s)
+                feed()
             else:
-                print(f"NTP sync failed after {retries} attempts: {e} — timestamps may be inaccurate")
+                print(f"NTP sync failed after {retries} attempts: {e} — using restored/RTC time")
     return False
 
 

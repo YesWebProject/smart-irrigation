@@ -40,6 +40,14 @@ INFLUX_TIMEOUT_S = 5
 NTFY_TIMEOUT_S   = 5
 CONFIG_TIMEOUT_S = 5
 
+# NTP time sync — tuned for a weak connection. Each attempt is bounded by
+# NTP_TIMEOUT_S, attempts rotate through NTP_HOSTS, and the watchdog is fed
+# between attempts (see cloud.sync_time). The clock is also restored from the
+# last wake on boot, so an occasional NTP failure is harmless.
+NTP_HOSTS     = ["pool.ntp.org", "time.google.com", "time.cloudflare.com"]
+NTP_TIMEOUT_S = 2
+NTP_RETRIES   = 4
+
 # ---------------------------------------------------------------------------
 # Watering
 # ---------------------------------------------------------------------------

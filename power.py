@@ -11,19 +11,23 @@
 # State file layout — 11 bytes, written to state.bin on the Pico filesystem.
 # The Pico 2W (RP2350) does not support RTC.memory() — flash filesystem is
 # used instead. state.bin persists across deep sleep and power cycles.
-#   Byte 0:    battery tier from last wake (1-4, 0 = first boot)
-#   Byte 1:    watered today flag (0 = no, 1 = yes) — written by decisions.py
-#   Byte 2:    consecutive watering-or-rain days (rest-day over-watering guard)
-#   Byte 3:    rest days remaining (rest-day over-watering guard)
-#   Bytes 4-5: RESERVED (kept for layout compatibility)
-#   Bytes 6-9: today's sunrise as unix timestamp uint32 — written by cloud.py
-#   Byte 10:   post-water fast monitoring cycles remaining (0 = normal sleep)
+#   Byte 0:     battery tier from last wake (1-4, 0 = first boot)
+#   Byte 1:     watered today flag (0 = no, 1 = yes) — written by decisions.py
+#   Byte 2:     consecutive watering-or-rain days (rest-day over-watering guard)
+#   Byte 3:     rest days remaining (rest-day over-watering guard)
+#   Byte 4:     time-unknown alert flag (1 = alert already sent this outage)
+#   Byte 5:     RESERVED (kept for layout compatibility)
+#   Bytes 6-9:  today's sunrise as unix timestamp uint32 — written by cloud.py
+#   Byte 10:    post-water fast monitoring cycles remaining (0 = normal sleep)
+#   Bytes 11-14: saved wake time as unix timestamp uint32 — approximate clock
+#                restored on boot if the RTC reset during deep sleep
 #
 # All other files that need persistent state import the helper functions from here.
 
 import machine
 from machine import ADC, Pin
 import ustruct
+import time
 
 # Hardware constants are fixed and safe to bind at import time.
 from config import (
@@ -44,23 +48,38 @@ import config as _cfg
 # Flash survives deep sleep and power cycles — behaviour is identical to RTC memory.
 # ---------------------------------------------------------------------------
 _STATE_FILE       = "state.bin"
-_STATE_SIZE       = 11   # total bytes in state file
+_STATE_SIZE       = 15   # total bytes in state file
 _IDX_TIER         = 0    # byte 0:  last battery tier
 _IDX_WATERED      = 1    # byte 1:  watered today flag
 _IDX_CONSEC_DAYS  = 2    # byte 2:  consecutive watering-or-rain days (rest guard)
 _IDX_SKIP_DAYS    = 3    # byte 3:  rest days remaining (rest guard)
-_IDX_RESERVED     = 4    # bytes 4-5: reserved
+_IDX_TIME_ALERTED = 4    # byte 4:  time-unknown alert sent flag
+_IDX_RESERVED     = 5    # byte 5:  reserved
 _IDX_SUNRISE      = 6    # bytes 6-9: sunrise unix timestamp (uint32)
 _IDX_POST_WATER   = 10   # byte 10: post-water fast cycles remaining
+_IDX_WAKE_UNIX    = 11   # bytes 11-14: saved wake time (uint32) — approximate clock
 
 
 def _read_rtc():
-    """Read state file into a bytearray. Initialises to zeros if missing or wrong size."""
+    """
+    Read state file into a bytearray.
+
+    Migrates an older, shorter state file (e.g. the previous 11-byte layout)
+    by padding it to the current size while preserving the existing bytes —
+    so adding new fields never wipes the rest-day counters or saved clock.
+    Initialises to zeros only if the file is missing or empty.
+    """
     try:
         with open(_STATE_FILE, "rb") as f:
             data = f.read()
         if len(data) == _STATE_SIZE:
             return bytearray(data)
+        if 0 < len(data) < _STATE_SIZE:
+            # Older/shorter layout — grow it, keeping the bytes we already have.
+            mem = bytearray(_STATE_SIZE)
+            mem[:len(data)] = data
+            _write_rtc(mem)
+            return mem
     except OSError:
         pass
     # First boot or corrupted file — start fresh
@@ -168,6 +187,69 @@ def set_skip_days_remaining(count):
 
 
 # ---------------------------------------------------------------------------
+# Time-unknown alert dedup flag
+# ---------------------------------------------------------------------------
+# Set when the "time unknown" alert has been sent, so an extended outage pings
+# the phone once rather than every wake. Cleared by main.py when time recovers.
+def get_time_alerted():
+    """Return True if the time-unknown alert has already been sent this outage."""
+    return bool(_read_rtc()[_IDX_TIME_ALERTED])
+
+
+def set_time_alerted(value):
+    """Record whether the time-unknown alert has been sent."""
+    mem = _read_rtc()
+    mem[_IDX_TIME_ALERTED] = 1 if value else 0
+    _write_rtc(mem)
+
+
+# ---------------------------------------------------------------------------
+# Approximate clock — survives deep sleep even without NTP
+# ---------------------------------------------------------------------------
+# The RP2350 RTC does not reliably survive machine.deepsleep, so we save the
+# expected wake time before sleeping and restore it on boot. This keeps an
+# approximate clock (accurate to the deep-sleep timer) so watering still works
+# when NTP is unreachable; NTP just corrects the drift when it can.
+def get_saved_wake_unix():
+    """Return the saved expected-wake unix timestamp, or 0 if never saved."""
+    mem = _read_rtc()
+    return ustruct.unpack(">I", bytes(mem[_IDX_WAKE_UNIX:_IDX_WAKE_UNIX + 4]))[0]
+
+
+def save_wake_unix(timestamp):
+    """Save the expected wake unix timestamp (clamped to a uint32)."""
+    mem = _read_rtc()
+    ts = max(0, min(0xFFFFFFFF, int(timestamp)))
+    mem[_IDX_WAKE_UNIX:_IDX_WAKE_UNIX + 4] = ustruct.pack(">I", ts)
+    _write_rtc(mem)
+
+
+def _clock_is_valid():
+    """True if the RTC year looks plausible (2024 or later)."""
+    return time.localtime()[0] >= 2024
+
+
+def restore_clock():
+    """
+    If the RTC came up unset after deep sleep (year < 2024) and we have a saved
+    wake time, set the RTC from it so the system has an approximate clock without
+    needing NTP. No-op if the clock is already valid or nothing was saved.
+    Returns True if the clock was restored.
+    """
+    if _clock_is_valid():
+        return False
+    ts = get_saved_wake_unix()
+    if not ts:
+        return False
+    # Mirror ntptime.settime()'s tuple form: weekday is tm[6] + 1.
+    tm = time.gmtime(ts)
+    machine.RTC().datetime((tm[0], tm[1], tm[2], tm[6] + 1, tm[3], tm[4], tm[5], 0))
+    print(f"Clock restored from saved wake time: "
+          f"{tm[0]}-{tm[1]:02d}-{tm[2]:02d} {tm[3]:02d}:{tm[4]:02d} UTC (approx)")
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Battery voltage
 # ---------------------------------------------------------------------------
 def read_battery_voltage():
@@ -268,16 +350,24 @@ def go_to_sleep(tier, voltage=None):
     # value applied by the Gist remote config during this wake cycle.
     emergency_v = getattr(_cfg, "BATTERY_EMERGENCY_CUTOFF_V", 3.0)
 
+    def _save_wake(duration_s):
+        # Save the expected wake time so the clock can be restored after deep
+        # sleep without NTP. Only meaningful when the current clock is valid.
+        if _clock_is_valid():
+            save_wake_unix(time.time() + duration_s)
+
     if voltage is not None and voltage < emergency_v:
         days = 7
         print(f"EMERGENCY: {voltage}V below {emergency_v}V cutoff "
               f"— sleeping {days} days to protect battery.")
+        _save_wake(days * 24 * 60 * 60)
         machine.deepsleep(days * 24 * 60 * 60 * 1000)
 
-    duration_ms = get_sleep_seconds(tier) * 1000
-    mins = get_sleep_seconds(tier) // 60
+    duration_s = get_sleep_seconds(tier)
+    mins = duration_s // 60
     print(f"Sleeping for {mins} minutes (tier {tier}). Goodbye.")
-    machine.deepsleep(duration_ms)
+    _save_wake(duration_s)
+    machine.deepsleep(duration_s * 1000)
 
 
 # ---------------------------------------------------------------------------

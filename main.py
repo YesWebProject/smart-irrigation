@@ -349,12 +349,15 @@ watchdog.feed()
 
 
 # ── Stage 5: Time sync and validity check ───────────────────────────────────
-# After deep sleep the Pico's RTC continues running, so time is usually
-# approximately correct. On first boot or after a total power loss the clock
-# resets to 2000-01-01. We detect this and skip time-dependent decisions
-# rather than watering at the wrong time.
+# The RP2350 RTC does not reliably survive deep sleep, so first restore an
+# approximate clock from the saved wake time (no-op if the RTC is still valid or
+# nothing was saved). Then try NTP, which corrects any drift when it succeeds.
+# Only if we end up with no usable clock at all do we skip time-dependent work.
 
-time_synced = cloud.sync_time()
+power.restore_clock()
+watchdog.feed()
+
+time_synced = cloud.sync_time(feed=watchdog.feed)
 watchdog.feed()
 
 def _time_is_valid():
@@ -364,11 +367,18 @@ def _time_is_valid():
 time_valid = time_synced or _time_is_valid()
 
 if not time_valid:
-    print("WARNING: NTP sync failed and clock is at year 2000 — time is unknown.")
-    cloud.send_ntfy_alert(
-        "Warning: time sync failed — clock not set. "
-        "Watering skipped this cycle. Check WiFi / NTP."
-    )
+    print("WARNING: time is unknown — NTP failed and no clock to restore.")
+    # Alert at most once per outage so a weak connection doesn't spam the phone.
+    if not power.get_time_alerted():
+        power.set_time_alerted(True)
+        cloud.send_ntfy_alert(
+            "Warning: time unknown — NTP unreachable and no saved clock. "
+            "Watering skipped until time recovers. Check WiFi / NTP."
+        )
+elif power.get_time_alerted():
+    # Time has recovered since the last alert — clear the flag (and say so once).
+    power.set_time_alerted(False)
+    cloud.send_ntfy_alert("Time recovered — clock is set again.")
 
 
 # ── Stage 6: Remote config ──────────────────────────────────────────────────
