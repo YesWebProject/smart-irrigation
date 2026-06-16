@@ -784,4 +784,4 @@ else:
 t = time.localtime()
 print(f"Wake cycle complete at {t[3]:02d}:{t[4]:02d} UTC — tier {tier} — sleeping {sleep_s // 60} min")
 
-power.go_to_sleep(tier, voltage=voltage)   # does not return
+power.go_to_sleep(tier, voltage=voltage, sleep_s=sleep_s)   # does not return

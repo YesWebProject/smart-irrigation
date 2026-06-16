@@ -1,6 +1,6 @@
 {
-  "version": 25,
-  "notes": "Resilient time-keeping on weak WiFi: save the expected wake time before deep sleep and restore an approximate clock on boot (RP2350 RTC does not survive deepsleep), so watering works without a fresh NTP sync every cycle. sync_time now bounds each attempt (ntptime.timeout), rotates NTP hosts, and feeds the watchdog between retries. The 'time unknown' alert is deduped to once per outage (state.bin byte 4) instead of every wake. state.bin grows 11->15 bytes (graceful migration preserves existing counters).",
+  "version": 26,
+  "notes": "Fix: post-water fast monitoring now actually sleeps short. go_to_sleep ignored the sleep_s main.py set for the 5-min post-water cycles and always used the tier duration; it now accepts a sleep_s override (emergency 7-day cutoff still takes precedence).",
   "base_url": "https://raw.githubusercontent.com/YesWebProject/smart-irrigation/main/",
   "files": [
     "main.py",

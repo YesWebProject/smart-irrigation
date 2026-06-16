@@ -331,15 +331,16 @@ def check_battery_alerts(voltage, tier, previous_tier, send_alert):
 # ---------------------------------------------------------------------------
 # Deep sleep
 # ---------------------------------------------------------------------------
-def go_to_sleep(tier, voltage=None):
+def go_to_sleep(tier, voltage=None, sleep_s=None):
     """
     Save the current tier and enter deep sleep.
-    Sleep duration is normally set by the tier.
+    Sleep duration is normally set by the tier, but sleep_s overrides it when
+    given (e.g. post-water fast monitoring, which wants a short 5-min sleep).
 
     If voltage is passed and is below BATTERY_EMERGENCY_CUTOFF_V (3.0V),
-    the device sleeps for 7 days instead of the normal 24 hours.
-    This hard floor prevents the 18650 cell being damaged by repeated
-    wake cycles when solar cannot keep up with consumption.
+    the device sleeps for 7 days instead — this emergency floor takes
+    precedence over sleep_s and the tier duration. It prevents the 18650
+    cell being damaged by repeated wake cycles when solar can't keep up.
 
     This function does not return — the Pico resets and restarts
     from the top of main.py when the sleep period ends.
@@ -363,7 +364,9 @@ def go_to_sleep(tier, voltage=None):
         _save_wake(days * 24 * 60 * 60)
         machine.deepsleep(days * 24 * 60 * 60 * 1000)
 
-    duration_s = get_sleep_seconds(tier)
+    # sleep_s overrides the tier duration (post-water fast monitoring); fall back
+    # to the tier-based duration when not given.
+    duration_s = int(sleep_s) if sleep_s is not None else get_sleep_seconds(tier)
     mins = duration_s // 60
     print(f"Sleeping for {mins} minutes (tier {tier}). Goodbye.")
     _save_wake(duration_s)
